@@ -1,156 +1,115 @@
 import streamlit as st
 import google.generativeai as genai
-import json
-from docx import Document
-import PyPDF2
-import io
 
-# 1. 페이지 브랜딩 및 디자인 설정
-st.set_page_config(page_title="박사원의 유튜브 업로드세팅 툴", layout="wide", page_icon="🎬")
+# 1. 페이지 설정
+st.set_page_config(page_title="유튜브 PD 전용 툴 v4.7", layout="wide")
+st.title("🎬 유튜브 업로드 자동화 v4.7 (가독성 최적화)")
 
-st.markdown("""
-    <style>
-    .stApp { background-color: #0e1117; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #C0392B; }
-    .tag-box { 
-        background-color: #1e1e1e; 
-        padding: 20px; 
-        border-radius: 10px; 
-        border: 2px solid #00FF00; 
-        color: #00FF00; 
-        font-family: monospace; 
-        font-size: 1.3rem; 
-        margin-bottom: 20px;
+# 2. 세션 상태 초기화
+if 'presets' not in st.session_state:
+    st.session_state.presets = {
+        "기본 채널": {
+            "context": "일반적인 정보 전달",
+            "template": "오늘의 영상 핵심 내용!\n\n{summary}\n\n구독과 좋아요 부탁드려요!"
+        }
     }
-    .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
-    .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
-    </style>
-    """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴")
-
-# 2. 엔진 설정 (Secrets 활용)
-try:
-    api_key = st.secrets["GEMINI_API_KEY"]
-    genai.configure(api_key=api_key)
-except Exception:
-    st.error("⚠️ 설정 오류: Streamlit Secrets에 GEMINI_API_KEY를 등록해주세요.")
-    st.stop()
-
+# 3. 사이드바 - 프리셋 관리자
 with st.sidebar:
-    st.header("⚙️ 박사원의 워크벤치")
-    model_options = ["gemini-2.5-flash", "gemini-2.0-flash"]
-    selected_model = st.selectbox("엔진 선택", model_options)
+    st.header("⚙️ 시스템 설정")
+    api_key = st.text_input("Gemini API Key 입력", type="password", placeholder="구글 AI 스튜디오에서 발급받은 키를 넣으세요")
+    
     st.divider()
-    if 'tokens' not in st.session_state: st.session_state.tokens = 0
-    st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
-
-# 3. 유로진 부산점 고정 템플릿
-default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
+    st.subheader("🗂️ 채널 프리셋 매니저")
+    
+    with st.expander("➕ 새 채널 등록 (예시 보기)", expanded=True):
+        new_name = st.text_input(
+            "채널 이름", 
+            placeholder="EX) 유로진 남성의원 부산점"
+        )
+        new_context = st.text_input(
+            "채널 성격 (AI 지시용)", 
+            placeholder="EX) 비뇨기과 전문의의 차분하고 신뢰감 있는 톤"
+        )
+        new_template = st.text_area(
+            "설명란 포맷 (자동 병합 틀)",
+            placeholder="""EX)
+💫 남성 건강의 시작, 유로진입니다 💫
 
 {summary}
 
-유로진남성의원 부산점은 단순한 진료를 넘어,
-남성의 자신감과 삶의 질을 회복하도록 돕는 전문 클리닉입니다.
-비뇨기 질환부터 남성 성 건강까지, 믿을 수 있는 의료진이 함께합니다.
-
-📩 궁금한 점이나 상담이 필요하다면 댓글로 남겨주세요.
-➡️ 유로진남성의 부산점에서 직접 답변드립니다.
-
+---
 📍 위치 : 부산 부산진구 부전동 257-3
-✔️ 홈페이지 : http://busan.urogyn.co.kr/
-✔️ 블로그 : https://blog.naver.com/kumhot_22
-✔️ 카카오톡 상담하기 : https://pf.kakao.com/_BjZTxd"""
+🌐 홈페이지 : http://busan.urogyn.co.kr/""",
+            height=250,
+            help="{summary}라고 적은 위치에 AI가 쓴 영상 요약이 자동으로 들어갑니다."
+        )
+        
+        if st.button("프리셋 저장"):
+            if new_name and new_template:
+                st.session_state.presets[new_name] = {"context": new_context, "template": new_template}
+                st.success(f"'{new_name}' 프리셋 저장 완료!")
+                st.rerun()
+            else:
+                st.error("채널명과 포맷을 모두 입력해주세요.")
 
-with st.expander("🛠️ 설명란 고정 양식 및 프리셋", expanded=False):
-    desc_template = st.text_area("템플릿 편집", value=default_template, height=350)
-    fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
+    st.divider()
+    selected_ch = st.selectbox("📺 현재 작업 채널 선택", list(st.session_state.presets.keys()))
+    current_config = st.session_state.presets[selected_ch]
 
-# 4. 입력 섹션
-st.subheader("📁 스크립트 불러오기")
-uploaded_file = st.file_uploader("메모장(TXT), 워드, PDF 지원", type=["txt", "docx", "pdf"])
+# 4. 메인 화면 - 입력창
+script_text = st.text_area(
+    f"[{selected_ch}] 영상 스크립트를 입력하세요", 
+    height=400,
+    placeholder="여기에 영상 전체 스크립트를 붙여넣으세요. 타임라인(00:00)이나 대화 내용이 포함되어 있어도 AI가 알아서 분석합니다."
+)
 
-final_script = ""
-
-if uploaded_file is not None:
-    try:
-        ftype = uploaded_file.name.split('.')[-1].lower()
-        if ftype == 'txt':
-            raw = uploaded_file.read()
-            try:
-                final_script = raw.decode("utf-8")
-            except:
-                final_script = raw.decode("cp949")
-        elif ftype == 'docx':
-            doc = Document(uploaded_file)
-            final_script = "\n".join([p.text for p in doc.paragraphs])
-        elif ftype == 'pdf':
-            pdf_reader = PyPDF2.PdfReader(uploaded_file)
-            for p in pdf_reader.pages:
-                txt = p.extract_text()
-                if txt: final_script += txt + "\n"
-        st.success(f"✅ {uploaded_file.name} 로드 완료")
-    except Exception as e:
-        st.error(f"파일 읽기 실패: {e}")
-else:
-    final_script = st.text_area("직접 입력", height=200, placeholder="여기에 내용을 입력하거나 파일을 드래그하세요.")
-
-# 5. 실행 및 결과 출력
-if st.button("✨ 세팅 데이터 추출하기"):
-    if not final_script:
-        st.warning("분석할 스크립트 내용이 없습니다.")
+if st.button("🚀 맞춤형 데이터 생성 시작"):
+    if not api_key or not script_text:
+        st.error("API 키와 스크립트를 입력해주세요.")
     else:
         try:
-            generation_config = {
-                "response_mime_type": "application/json",
-                "response_schema": {
-                    "type": "object",
-                    "properties": {
-                        "titles": {"type": "array", "items": {"type": "string"}},
-                        "summary_content": {"type": "string"},
-                        "tags": {"type": "string"},
-                        "hashtags": {"type": "string"},
-                        "thumbnail": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": ["titles", "summary_content", "tags", "hashtags", "thumbnail"]
-                }
-            }
-            model = genai.GenerativeModel(selected_model, generation_config=generation_config)
+            genai.configure(api_key=api_key)
+            model = genai.GenerativeModel("gemini-2.0-flash")
             
-            with st.spinner("박사원의 AI 비서가 분석 중..."):
-                prompt = f"당신은 전문 유튜브 PD입니다. 스크립트를 분석하여 줄바꿈이 포함된 요약과 SEO 데이터를 생성하세요: {final_script}"
+            with st.spinner(f"[{selected_ch}] 스타일에 맞춰 분석 중..."):
+                # [핵심 변경 사항]: 요약문에 대한 AI 프롬프트 지시를 극도로 타이트하게 조였습니다.
+                prompt = f"""
+                유튜브 SEO 전문가로서 다음 지침에 따라 데이터를 작성하세요.
+                
+                1. 추천 제목: 클릭률이 높은 제목 5개
+                2. 요약문: 반드시 [[SUMMARY]] 요약내용 [[/SUMMARY]] 형식으로 작성하세요.
+                   - [절대 금지사항]: 길고 지루한 줄글로 모든 내용을 설명하지 마세요.
+                   - [작성 가이드]: 시청자가 영상을 클릭하지 않고는 못 배기도록, 호기심을 유발하는 '핵심 질문'이나 '가장 흥미로운 포인트 2~3가지'만 짧고 간결하게 축약하세요.
+                   - 가독성을 위해 불릿 기호(- 또는 이모지)를 사용하고, 전체 길이는 절대 3~4줄을 넘지 않게 하세요. ({current_config['context']} 톤 유지)
+                3. 태그 50개: 쉼표로만 구분 (# 없음)
+                4. 해시태그 10개: # 포함
+                5. 썸네일 카피: 3개
+
+                [스크립트]
+                {script_text}
+                """
                 response = model.generate_content(prompt)
-                data = json.loads(response.text)
-                st.session_state.tokens = response.usage_metadata.total_token_count
-                
-                st.success("✅ 분석 완료! 아래에서 결과를 확인하세요.")
-                
-                # 결과 출력 섹션 (세로형 배치)
-                st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown('<span class="big-font">💡 추천 제목 리스트</span>', unsafe_allow_html=True)
-                    for t in data['titles']: st.write(f"📍 **{t}**")
-                with c2:
-                    st.markdown('<span class="big-font">🖼️ 썸네일 카피</span>', unsafe_allow_html=True)
-                    for c in data['thumbnail']: st.info(c)
-                st.markdown('</div>', unsafe_allow_html=True)
+                res_text = response.text
 
-                st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                st.markdown('<span class="big-font">🏷️ 검색용 태그 (쉼표 구분)</span>', unsafe_allow_html=True)
-                tag_content = data["tags"]
-                st.markdown(f'<div class="tag-box">{tag_content}</div>', unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                # 요약문 파싱 및 템플릿 결합
+                try:
+                    extracted = res_text.split("[[SUMMARY]]")[1].split("[[/SUMMARY]]")[0].strip()
+                except:
+                    extracted = "요약문 추출 오류가 발생했습니다."
 
-                st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                st.markdown('<span class="big-font">📋 최종 설명란 (복사용)</span>', unsafe_allow_html=True)
-                final_sum = data['summary_content']
-                final_desc = desc_template.replace("{summary}", final_sum)
-                st.code(f"{final_desc}\n\n{fixed_hashtags} {data['hashtags']}", language="text")
-                st.markdown('</div>', unsafe_allow_html=True)
-                
-                st.toast("박사원님, 분석이 완벽하게 끝났습니다!", icon="🎬")
+                final_description = current_config['template'].replace("{summary}", extracted)
+
+                st.success("✅ 생성 완료!")
+                st.divider()
+
+                col1, col2 = st.columns([1, 1])
+                with col1:
+                    st.subheader("📋 AI 분석 원본")
+                    st.write(res_text.replace("[[SUMMARY]]", "").replace("[[/SUMMARY]]", ""))
+                with col2:
+                    st.subheader("✍️ 완성된 설명란 (즉시 복사)")
+                    st.text_area("유튜브 업로드 시 그대로 붙여넣으세요.", value=final_description, height=600)
 
         except Exception as e:
-            st.error(f"시스템 오류 발생: {e}")
+            st.error(f"오류 발생: {e}")
