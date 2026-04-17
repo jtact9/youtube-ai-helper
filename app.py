@@ -9,7 +9,7 @@ from datetime import datetime
 # 1. 페이지 브랜딩 및 디자인 설정
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
-# CSS: UI 스타일 및 애니메이션 정의
+# CSS: UI 스타일 및 애니메이션
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -34,39 +34,37 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 최상단 흐르는 공지사항 (긴급 가이드)
+# 2. 최상단 흐르는 공지 (긴급 가이드)
 st.markdown("""
     <div class="marquee">
-        <p>🚨 [필독] 생성 도중 페이지를 벗어나거나 업무를 전환하면 작업이 초기화됩니다! 에러 시 엔진 변경 후 1분 뒤 재실행 바랍니다. 버튼 연타 금지! 🚨</p>
+        <p>🚨 [필독] 생성 도중 메뉴를 전환하면 작업이 초기화됩니다! 에러 시 엔진 변경 후 1분 뒤 재실행 바랍니다. 연타 금지! 🚨</p>
     </div>
     """, unsafe_allow_html=True)
 
 # 3. 고정형 초기화 경고
-st.warning("⚠️ **주의:** 메뉴 전환 시 입력 데이터가 사라집니다. 결과가 나올 때까지 현재 페이지를 유지해 주세요.")
+st.warning("⚠️ **주의:** 메뉴 전환 시 입력 데이터가 사라집니다. 결과 도출까지 현재 페이지를 유지해 주세요.")
 
-# 4. 엔진 설정
+# 4. 시스템 설정 (Secrets)
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except:
-    st.error("⚠️ Secrets 설정에서 GEMINI_API_KEY를 확인하세요.")
+    st.error("⚠️ 설정 오류: Streamlit Secrets에 GEMINI_API_KEY를 등록해주세요.")
     st.stop()
 
 # 5. 사이드바 메인 메뉴
 with st.sidebar:
     st.title("🛠️ 박사원의 워크벤치")
-    # 공지게시판 메뉴 추가
     menu = st.radio("업무 선택", ["🎬 유튜브 업로드 세팅", "📧 비즈니스 격식 변환기", "📝 콘텐츠 기획 콘티", "📋 공지게시판"])
     st.divider()
     selected_model = st.selectbox("엔진 선택", ["gemini-2.0-flash", "gemini-2.5-flash"])
     if 'tokens' not in st.session_state: st.session_state.tokens = 0
     st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
-# --- 데이터 보존을 위한 session_state 설정 ---
+# --- session_state 설정 ---
 if 'notices' not in st.session_state:
     st.session_state.notices = [
-        {"date": "2026-04-17", "tag": "필독", "content": "워크벤치 v7.0 업데이트: 공지게시판 기능이 추가되었습니다."},
-        {"date": "2026-04-16", "tag": "안내", "content": "서버 부하 방지를 위해 API 요청은 분당 5회로 제한됩니다."}
+        {"date": "2026-04-17", "tag": "업데이트", "content": "보안 강화를 위해 공지 등록 기능에 비밀번호가 적용되었습니다."}
     ]
 
 # ==========================================
@@ -93,7 +91,7 @@ if menu == "🎬 유튜브 업로드 세팅":
     else: final_script = st.text_area("직접 입력", height=200, key="yt_text")
 
     if st.button("🚀 데이터 추출하기"):
-        if not final_script: st.warning("분석할 내용을 입력해주세요.")
+        if not final_script: st.warning("내용을 입력해주세요.")
         else:
             try:
                 model = genai.GenerativeModel(selected_model)
@@ -104,8 +102,7 @@ if menu == "🎬 유튜브 업로드 세팅":
                     st.session_state.tokens = response.usage_metadata.total_token_count
                     st.markdown('<div class="result-section">', unsafe_allow_html=True)
                     st.markdown(f'<div class="tag-box">{data.get("tags", "")}</div>', unsafe_allow_html=True)
-                    summary = data.get("summary_content", "")
-                    st.code(f"{desc_template.replace('{summary}', summary)}\n\n{fixed_hashtags}", language="text")
+                    st.code(f"{desc_template.replace('{summary}', data.get('summary_content', ''))}\n\n{fixed_hashtags}", language="text")
                     st.markdown('</div>', unsafe_allow_html=True)
             except Exception as e: st.error(f"오류: {e}")
 
@@ -128,16 +125,14 @@ elif menu == "📧 비즈니스 격식 변환기":
         except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 8. 기능 3: 콘텐츠 기획 콘티
+# 8. 기능 3: 콘텐츠 기획 콘티 (시즌 7 Style)
 # ==========================================
 elif menu == "📝 콘텐츠 기획 콘티":
     st.title("📝 콘텐츠 기획 콘티 (시즌 7 Style)")
-    col_c1, col_c2 = st.columns(2)
-    with col_c1: client_name = st.text_input("업체명", value="유로진 부산점")
-    with col_c2: q_count = st.slider("질문 개수", 3, 10, 6)
+    client_name = st.text_input("업체명", value="유로진 부산점")
+    q_count = st.slider("질문 개수", 3, 10, 6)
     
     st.markdown("### 🎯 주제별 상세 가이드")
-    st.info("각 주제에서 다룰 핵심 의도를 입력해주세요.")
     c_t1, c_t2 = st.columns(2)
     with c_t1:
         f1 = st.text_input("주제 1", placeholder="도입부 위험성 강조")
@@ -168,31 +163,39 @@ elif menu == "📝 콘텐츠 기획 콘티":
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
                 st.write(response.text)
                 st.markdown('</div>', unsafe_allow_html=True)
-                st.balloons()
         except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 9. 기능 4: 공지게시판 (Notice Board)
+# 9. 기능 4: 공지게시판 (보안 강화)
 # ==========================================
 elif menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
-    st.write("팀원들과 공유할 공지사항을 확인하고 관리할 수 있습니다.")
+    st.write("공지사항 이력을 확인하고 관리자 권한으로 새 공지를 등록합니다.")
 
-    # 공지사항 작성 (Admin 영역)
-    with st.expander("➕ 새 공지사항 작성 (PD 전용)", expanded=False):
-        new_tag = st.selectbox("태그 선택", ["필독", "안내", "업데이트", "긴급"])
-        new_content = st.text_area("공지 내용 입력")
+    # 공지사항 작성란 (비밀번호 보안 적용)
+    with st.expander("➕ 새 공지사항 작성 (관리자 인증 필요)", expanded=False):
+        new_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
+        new_content = st.text_area("내용 입력")
+        
+        # 비밀번호 입력 필드 추가
+        admin_password = st.text_input("보안 비밀번호 입력", type="password", placeholder="비밀번호를 입력하세요")
+        
         if st.button("📢 공지 등록"):
-            if new_content:
-                new_notice = {
-                    "date": datetime.now().strftime("%Y-%m-%d"),
-                    "tag": new_tag,
-                    "content": new_content
-                }
-                # 최신 공지가 위로 오게 추가
-                st.session_state.notices.insert(0, new_notice)
-                st.success("새 공지가 등록되었습니다.")
-                st.rerun()
+            # 비밀번호 검증 로직
+            if admin_password == "0914":
+                if new_content:
+                    new_notice = {
+                        "date": datetime.now().strftime("%Y-%m-%d"),
+                        "tag": new_tag,
+                        "content": new_content
+                    }
+                    st.session_state.notices.insert(0, new_notice)
+                    st.success("✅ 공지가 안전하게 등록되었습니다.")
+                    st.rerun()
+                else:
+                    st.warning("공지 내용을 입력해 주세요.")
+            else:
+                st.error("❌ 비밀번호가 틀렸습니다. 공지를 등록할 수 없습니다.")
 
     # 공지사항 리스트 출력
     st.markdown("---")
