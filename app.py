@@ -115,7 +115,7 @@ if st.button("✨ 세팅 데이터 추출하기"):
             }
             model = genai.GenerativeModel(selected_model, generation_config=generation_config)
             
-            with st.spinner("박사원의 AI 비서가 4~5줄 분량의 전략적 요약을 작성 중..."):
+            with st.spinner("박사원이 전략적 요약을 작성 중..."):
                 # 프롬프트: 4~5줄 분량 및 빌드업 강조
                 prompt = f"""당신은 유튜브 알고리즘을 꿰뚫고 있는 베테랑 PD입니다. 
                 다음 [스크립트]를 바탕으로 시청자의 호기심을 극대화하는 메타데이터를 생성하세요.
@@ -133,7 +133,7 @@ if st.button("✨ 세팅 데이터 추출하기"):
                 data = json.loads(response.text)
                 st.session_state.tokens = response.usage_metadata.total_token_count
                 
-                st.success("✅ 분석 완료! 4~5줄 규모의 최적화된 요약본이 생성되었습니다.")
+                st.success("✅ 분석 완료! 박사원이 열심히 분석을 완료했습니다!.")
                 
                 # 결과 출력
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
@@ -158,7 +158,7 @@ if st.button("✨ 세팅 데이터 추출하기"):
                 st.code(f"{final_desc}\n\n{fixed_hashtags} {data['hashtags']}", language="text")
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                st.toast("박사원님, 4~5줄 분량의 전략적 요약이 완료되었습니다!")
+                st.toast("전략적 요약이 완료되었습니다!")
 
         except Exception as e:
             st.error(f"시스템 오류 발생: {e}")
