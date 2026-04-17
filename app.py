@@ -5,7 +5,7 @@ from docx import Document
 import PyPDF2
 import io
 
-# 1. 페이지 인터페이스 및 브랜딩 설정
+# 1. 페이지 인터페이스 설정
 st.set_page_config(page_title="박사원의 유튜브 업로드세팅 툴", layout="wide", page_icon="🎬")
 
 st.markdown("""
@@ -13,7 +13,6 @@ st.markdown("""
     .stApp { background-color: #0e1117; }
     .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; border: none; }
     .stButton>button:hover { background-color: #C0392B; }
-    /* 태그 박스 가독성 */
     .tag-box { 
         background-color: #1e1e1e; 
         padding: 20px; 
@@ -25,12 +24,11 @@ st.markdown("""
         margin-bottom: 20px;
     }
     .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
-    /* 결과 섹션 배경 */
     .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.7)")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.8)")
 
 # 2. 시스템 엔진 설정
 try:
@@ -68,13 +66,12 @@ with st.expander("🛠️ 설명란 고정 양식 및 프리셋", expanded=False
     desc_template = st.text_area("템플릿 편집", value=default_template, height=350)
     fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
-# 4. 입력 섹션 (파일 업로드 기능 강화)
+# 4. 입력 섹션
 st.subheader("📁 스크립트 불러오기")
 uploaded_file = st.file_uploader("메모장(TXT), 워드, PDF 지원", type=["txt", "docx", "pdf"])
 
 final_script = ""
 
-# 에러가 났던 지점 수정 완료: uploaded_file 변수명 확인 및 콜론(:) 추가
 if uploaded_file is not None:
     try:
         ftype = uploaded_file.name.split('.')[-1].lower()
@@ -87,17 +84,19 @@ if uploaded_file is not None:
             final_script = "\n".join([p.text for p in doc.paragraphs])
         elif ftype == 'pdf':
             pdf = PyPDF2.PdfReader(uploaded_file)
-            for p in pdf.pages: final_script += p.extract_text() + "\n"
+            for p in pdf.pages:
+                txt = p.extract_text()
+                if txt: final_script += txt + "\n"
         st.success(f"✅ {uploaded_file.name} 로드 완료")
     except Exception as e:
         st.error(f"파일 읽기 실패: {e}")
 else:
-    final_script = st.text_area("직접 입력", height=200, placeholder="여기에 스크립트를 직접 입력하거나 파일을 업로드하세요.")
+    final_script = st.text_area("직접 입력", height=200, placeholder="여기에 직접 입력하거나 파일을 업로드하세요.")
 
-# 5. 실행 및 결과 출력
+# 5. 실행 로직 (try-except 구조 정밀 교정)
 if st.button("✨ 세팅 데이터 추출하기"):
     if not final_script:
-        st.warning("스크립트를 먼저 넣어주세요.")
+        st.warning("분석할 스크립트를 먼저 입력하거나 파일을 올려주세요.")
     else:
         try:
             generation_config = {
@@ -124,4 +123,17 @@ if st.button("✨ 세팅 데이터 추출하기"):
                 
                 st.success("✅ 분석 완료! 아래에서 결과를 확인하세요.")
                 
-                #
+                # --- 세로형 레이아웃 출력 ---
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                c1, c2 = st.columns(2)
+                with c1:
+                    st.markdown('<span class="big-font">💡 추천 제목 리스트</span>', unsafe_allow_html=True)
+                    for t in data['titles']: st.write(f"📍 **{t}**")
+                with c2:
+                    st.markdown('<span class="big-font">🖼️ 썸네일 카피</span>', unsafe_allow_html=True)
+                    for c in data['thumbnail']: st.info(c)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                st.markdown('<span class="big-font">🏷️ 검색용 태그 (쉼표 구분)</span>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tag-box">{data["
