@@ -9,7 +9,7 @@ import random
 from datetime import datetime
 from io import BytesIO
 
-# 1. 페이지 설정
+# 1. 페이지 브랜딩 및 디자인
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
 st.markdown("""
@@ -29,22 +29,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 수선 및 로드 로직 (KeyError 해결 핵심)
+# 2. 데이터 영구 저장 및 자동 복구 로직
 NOTICES_FILE = 'notices.json'
 
 def load_notices():
+    default_notice = [{"id": 123456, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 금지! 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 비번: 0914 🚨", "image": None, "pinned": True}]
     if os.path.exists(NOTICES_FILE):
         try:
             with open(NOTICES_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                # 데이터 수선: 'id'나 'pinned'가 없는 구버전 데이터에 기본값 부여
+                if not data: return default_notice
+                # KeyError 원천 차단: 모든 공지에 필수 키(id, pinned 등) 강제 주입
                 for item in data:
+                    if not isinstance(item, dict): continue
                     if 'id' not in item: item['id'] = random.randint(100000, 999999)
                     if 'pinned' not in item: item['pinned'] = False
                     if 'image' not in item: item['image'] = None
                 return data
-        except: return []
-    return [{"id": 123456, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 금지! 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
+        except: return default_notice
+    return default_notice
 
 def save_notices(notices):
     with open(NOTICES_FILE, 'w', encoding='utf-8') as f:
@@ -55,15 +58,15 @@ if 'notices' not in st.session_state:
 
 # 3. 상단 동적 공지
 pinned_list = [n for n in st.session_state.notices if n.get('pinned', False)]
-marquee_content = f"📌 [고정] {pinned_list[0]['content']}" if pinned_list else (st.session_state.notices[0]['content'] if st.session_state.notices else "현재 등록된 공지가 없습니다.")
+marquee_content = f"📌 [고정] {pinned_list[0]['content']}" if pinned_list else (st.session_state.notices[0]['content'] if st.session_state.notices else "공지 없음")
 st.markdown(f'<div class="marquee"><p>{marquee_content}</p></div>', unsafe_allow_html=True)
 
-# 4. 시스템 설정
+# 4. 시스템 엔진 설정
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except:
-    st.error("⚠️ Secrets 설정 오류")
+    st.error("⚠️ Secrets 설정 오류 (GEMINI_API_KEY)")
     st.stop()
 
 # 5. 사이드바
@@ -77,12 +80,12 @@ with st.sidebar:
 def img_to_base64(file):
     return base64.b64encode(file.read()).decode() if file else None
 
-# --- 각 기능 모듈 ---
+# --- 각 기능별 로직 ---
 if menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
     with st.expander("🛠️ 설명란 양식 편집"):
         default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫\n\n{summary}\n\n📍 위치 : 부산 부산진구 부전동 257-3\n✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
-        desc_template = st.text_area("템플릿", value=default_template, height=200)
+        desc_template = st.text_area("템플릿", value=default_template, height=180)
         fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
     uploaded_file = st.file_uploader("파일 업로드", type=["txt", "docx", "pdf"])
@@ -93,7 +96,7 @@ if menu == "🎬 유튜브 업로드 세팅":
         elif ftype == 'docx': final_script = "\n".join([p.text for p in Document(uploaded_file).paragraphs])
         elif ftype == 'pdf':
             for p in PyPDF2.PdfReader(uploaded_file).pages: final_script += (p.extract_text() or "") + "\n"
-    else: final_script = st.text_area("직접 입력", height=200)
+    else: final_script = st.text_area("직접 입력", height=150)
 
     if st.button("🚀 데이터 추출하기"):
         if not final_script: st.warning("내용을 입력하세요.")
@@ -112,7 +115,7 @@ if menu == "🎬 유튜브 업로드 세팅":
 elif menu == "📧 비즈니스 격식 변환기":
     st.title("📧 비즈니스 격식 변환기")
     biz_tone = st.selectbox("변환 톤", ["아주 정중하게", "부드럽고 친절하게", "단호하고 명확하게"])
-    raw_text = st.text_area("내용 입력", height=200)
+    raw_text = st.text_area("내용 입력", height=150)
     if st.button("✨ 변환하기"):
         try:
             model = genai.GenerativeModel(selected_model)
@@ -139,7 +142,7 @@ elif menu == "📝 콘텐츠 기획 콘티":
 
 elif menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
-    with st.expander("➕ 새 공지 등록 (0914)"):
+    with st.expander("➕ 새 공지 등록 (비번: 0914)"):
         n_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
         n_content = st.text_area("내용")
         n_img = st.file_uploader("이미지", type=["png", "jpg"])
@@ -148,20 +151,34 @@ elif menu == "📋 공지게시판":
             if n_pass == "0914" and n_content:
                 new = {"id": random.randint(100000, 999999), "date": datetime.now().strftime("%Y-%m-%d"), "tag": n_tag, "content": n_content, "image": img_to_base64(n_img), "pinned": False}
                 st.session_state.notices.insert(0, new); save_notices(st.session_state.notices); st.rerun()
-            else: st.error("인증 실패 또는 내용 없음")
+            else: st.error("인증 실패")
 
     st.markdown("---")
+    # 정렬: 고정 게시물 최상단 배치
     sorted_notices = sorted(st.session_state.notices, key=lambda x: x.get('pinned', False), reverse=True)
+    
     for n in sorted_notices:
-        idx = next(i for i, item in enumerate(st.session_state.notices) if item['id'] == n['id'])
+        # KeyError 방어 로직: id가 없는 항목은 패스하거나 수정
+        notice_id = n.get('id')
+        if not notice_id: continue
+        
+        # 실제 데이터 인덱스 찾기
+        idx_list = [i for i, item in enumerate(st.session_state.notices) if item.get('id') == notice_id]
+        if not idx_list: continue
+        idx = idx_list[0]
+        
         is_p = n.get("pinned", False)
-        st.markdown(f'<div class="{"notice-card-pinned" if is_p else "notice-card"}"><small>[{n["date"]}] <b>{n["tag"]}</b> {"📌 고정됨" if is_p else ""}</small><br><p>{n["content"]}</p></div>', unsafe_allow_html=True)
-        if n.get("image"): st.image(base64.b64decode(n["image"]), width=400)
+        st.markdown(f'<div class="{"notice-card-pinned" if is_p else "notice-card"}"><small>[{n.get("date", "")}] <b>{n.get("tag", "")}</b> {"📌 고정됨" if is_p else ""}</small><br><p>{n.get("content", "")}</p></div>', unsafe_allow_html=True)
+        
+        if n.get("image"):
+            try: st.image(base64.b64decode(n["image"]), width=400)
+            except: pass
+            
         c1, c2, _ = st.columns([1, 1, 4])
         with c1:
             with st.popover("📌 고정"):
-                if st.text_input("비번", type="password", key=f"p_{n['id']}") == "0914":
-                    if st.button("설정/해제", key=f"pb_{n['id']}"):
+                if st.text_input("비번", type="password", key=f"p_{notice_id}") == "0914":
+                    if st.button("설정/해제", key=f"pb_{notice_id}"):
                         if not is_p:
                             for item in st.session_state.notices: item["pinned"] = False
                             st.session_state.notices[idx]["pinned"] = True
@@ -169,6 +186,6 @@ elif menu == "📋 공지게시판":
                         save_notices(st.session_state.notices); st.rerun()
         with c2:
             with st.popover("🗑️ 삭제"):
-                if st.text_input("비번", type="password", key=f"d_{n['id']}") == "0914":
-                    if st.button("확인", key=f"db_{n['id']}"):
+                if st.text_input("비번", type="password", key=f"d_{notice_id}") == "0914":
+                    if st.button("확인", key=f"db_{notice_id}"):
                         st.session_state.notices.pop(idx); save_notices(st.session_state.notices); st.rerun()
