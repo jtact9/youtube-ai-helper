@@ -46,35 +46,21 @@ with st.sidebar:
     st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
 # --- 랜덤 로딩 메시지 세트 ---
-msgs_yt = [
-    "🎬 박사원이 컷편집 정밀하게 들어가는 중...", 
-    "✂️ 박사원이 썸네일 카피 고뇌하는 중...",
-    "🙏 유튜브 알고리즘 신에게 기도 올리는 중..."
-]
-msgs_biz = [
-    "💼 박사원이 정장 갈아입고 명함 챙기는 중...", 
-    "✍️ 박사원이 정중한 문장으로 다듬는 중...",
-    "☕ 업체 미팅 전 맞춤법 검사기 돌리는 중..."
-]
-msgs_conti = [
-    "📝 박사원이 레퍼런스 뜯어보며 콘티 짜는 중...", 
-    "💡 박사원이 기발한 질문 리스트 뽑는 중...",
-    "🔍 결론은 감추고 호기심은 키우는 중..."
-]
+msgs_yt = ["🎬 박사원이 컷편집 정밀하게 들어가는 중...", "✂️ 박사원이 썸네일 카피 고뇌하는 중...", "🙏 알고리즘 신에게 기도 올리는 중..."]
+msgs_biz = ["💼 박사원이 정장 갈아입고 명함 챙기는 중...", "✍️ 박사원이 정중한 문장으로 다듬는 중...", "☕ 업체 미팅 전 맞춤법 검사기 돌리는 중..."]
+msgs_conti = ["📝 박사원이 레퍼런스 뜯어보며 콘티 짜는 중...", "💡 박사원이 기발한 질문 리스트 뽑는 중...", "🔍 결론은 감추고 호기심은 키우는 중..."]
 
 # ==========================================
 # 4. 기능 1: 유튜브 업로드 세팅
 # ==========================================
 if menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
-    
     with st.expander("🛠️ 설명란 양식 편집", expanded=False):
         default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫\n\n{summary}\n\n📍 위치 : 부산 부산진구 부전동 257-3\n✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
         desc_template = st.text_area("템플릿", value=default_template, height=200)
         fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
     uploaded_file = st.file_uploader("스크립트 파일 업로드", type=["txt", "docx", "pdf"])
-    
     final_script = ""
     if uploaded_file:
         try:
@@ -91,14 +77,93 @@ if menu == "🎬 유튜브 업로드 세팅":
                 for p in pdf_reader.pages:
                     txt = p.extract_text()
                     if txt: final_script += txt + "\n"
-            st.success(f"✅ {uploaded_file.name} 로드 성공")
-        except Exception as e:
-            st.error(f"파일 로드 실패: {e}")
+        except Exception as e: st.error(f"파일 로드 실패: {e}")
     else:
-        final_script = st.text_area("직접 입력", height=200, placeholder="여기에 스크립트를 직접 입력하세요.")
+        final_script = st.text_area("직접 입력", height=200, placeholder="여기에 스크립트를 입력하세요.")
 
     if st.button("🚀 데이터 추출하기"):
-        if not final_script:
-            st.warning("분석할 내용을 입력해주세요.")
+        if not final_script: st.warning("분석할 내용을 입력해주세요.")
         else:
-            try
+            try:
+                model = genai.GenerativeModel(selected_model)
+                with st.spinner(random.choice(msgs_yt)):
+                    prompt = f"유튜브 PD로서 다음 스크립트 분석해. 요약은 4~5줄, 문장마다 줄바꿈 필수, 이모지 포함, 호기심 유발. 태그는 쉼표 구분 50개. 결과 JSON으로. 스크립트: {final_script}"
+                    response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                    data = json.loads(response.text)
+                    st.session_state.tokens = response.usage_metadata.total_token_count
+                    
+                    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                    st.markdown('<span class="big-font">🏷️ 검색용 고밀도 태그</span>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tag-box">{data.get("tags", "")}</div>', unsafe_allow_html=True)
+                    st.markdown('</div>', unsafe_allow_html=True)
+
+                    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                    st.markdown('<span class="big-font">📋 최종 설명란 (복사용)</span>', unsafe_allow_html=True)
+                    summary = data.get("summary_content", "")
+                    final_desc = desc_template.replace("{summary}", summary)
+                    st.code(f"{final_desc}\n\n{fixed_hashtags}", language="text")
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.balloons()
+            except Exception as e: st.error(f"오류 발생: {e}")
+
+# ==========================================
+# 5. 기능 2: 비즈니스 격식 변환기
+# ==========================================
+elif menu == "📧 비즈니스 격식 변환기":
+    st.title("📧 비즈니스 격식 변환기")
+    biz_tone = st.selectbox("변환 톤 선택", ["아주 정중하게 (이메일용)", "부드럽고 친절하게 (카톡/문자용)", "단호하고 명확하게 (공문/요청용)"])
+    raw_text = st.text_area("내용 입력", height=200, placeholder="예: 낼 촬영 2시 가능?")
+
+    if st.button("✨ 변환하기"):
+        if not raw_text: st.warning("변환할 내용을 입력해주세요.")
+        else:
+            try:
+                model = genai.GenerativeModel(selected_model)
+                with st.spinner(random.choice(msgs_biz)):
+                    prompt = f"비즈니스 커뮤니케이션 전문가로서 작성자 '영상팀 박진성 사원' 명의로 다음 내용을 '{biz_tone}'으로 변환해. 결과는 제목/본문 구분. 내용: {raw_text}"
+                    response = model.generate_content(prompt)
+                    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                    st.markdown(f'<span class="big-font">📝 변환 결과 ({biz_tone})</span>', unsafe_allow_html=True)
+                    st.code(response.text, language="text")
+                    st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e: st.error(f"오류 발생: {e}")
+
+# ==========================================
+# 6. 기능 3: 콘텐츠 기획 콘티
+# ==========================================
+elif menu == "📝 콘텐츠 기획 콘티":
+    st.title("📝 콘텐츠 기획 콘티 생성기")
+    col_c1, col_c2 = st.columns(2)
+    with col_c1: client_name = st.text_input("업체명", placeholder="예: 유로진 부산점")
+    with col_c2: q_count = st.slider("질문 개수", 3, 10, 5)
+
+    uploaded_ref = st.file_uploader("레퍼런스 파일 업로드", type=["txt", "docx", "pdf"])
+    final_ref = ""
+    if uploaded_ref:
+        try:
+            ftype = uploaded_ref.name.split('.')[-1].lower()
+            if ftype == 'txt': final_ref = uploaded_ref.read().decode("utf-8")
+            elif ftype == 'docx': final_ref = "\n".join([p.text for p in Document(uploaded_ref).paragraphs])
+            elif ftype == 'pdf':
+                pr = PyPDF2.PdfReader(uploaded_ref)
+                for p in pr.pages: final_ref += (p.extract_text() or "") + "\n"
+        except: st.error("파일 로드 실패")
+    else: final_ref = st.text_area("레퍼런스 직접 입력", height=150)
+
+    if st.button("💡 전략 콘티 생성하기"):
+        if not final_ref or not client_name: st.warning("업체명과 레퍼런스 내용을 입력해주세요.")
+        else:
+            try:
+                model = genai.GenerativeModel(selected_model)
+                with st.spinner(random.choice(msgs_conti)):
+                    prompt = f"""업체 '{client_name}'를 위한 콘텐츠 작가로서 다음 레퍼런스를 분석해 콘티를 짜줘.
+                    1. 타겟 분석 한 줄. 2. 호기심 자극 질문 {q_count}개 (결론 스포 금지). 
+                    3. 도입 5초 훅 전략. 4. 시청 지속 유도 전략. 
+                    레퍼런스: {final_ref}"""
+                    response = model.generate_content(prompt)
+                    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                    st.markdown(f'<span class="big-font">📝 {client_name} 기획 콘티 초안</span>', unsafe_allow_html=True)
+                    st.write(response.text)
+                    st.markdown('</div>', unsafe_allow_html=True)
+                    st.balloons()
+            except Exception as e: st.error(f"오류 발생: {e}")
