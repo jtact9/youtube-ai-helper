@@ -28,14 +28,14 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.9)")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v4.0)")
 
-# 2. 시스템 엔진 설정 (Secrets 관리)
+# 2. 시스템 엔진 설정 (Secrets)
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 설정 오류: Streamlit Cloud의 Settings > Secrets에 GEMINI_API_KEY를 등록해주세요.")
+    st.error("⚠️ 설정 오류: Streamlit Secrets에 GEMINI_API_KEY를 등록해주세요.")
     st.stop()
 
 with st.sidebar:
@@ -53,32 +53,4 @@ default_template = """💫 남성 건강의 시작, 유로진에서 함께하세
 
 유로진남성의원 부산점은 단순한 진료를 넘어,
 남성의 자신감과 삶의 질을 회복하도록 돕는 전문 클리닉입니다.
-비뇨기 질환부터 남성 성 건강까지, 믿을 수 있는 의료진이 함께합니다.
-
-📩 궁금한 점이나 상담이 필요하다면 댓글로 남겨주세요.
-➡️ 유로진남성의 부산점에서 직접 답변드립니다.
-
-📍 위치 : 부산 부산진구 부전동 257-3
-✔️ 홈페이지 : http://busan.urogyn.co.kr/
-✔️ 블로그 : https://blog.naver.com/kumhot_22
-✔️ 카카오톡 상담하기 : https://pf.kakao.com/_BjZTxd"""
-
-with st.expander("🛠️ 설명란 고정 양식 및 프리셋", expanded=False):
-    desc_template = st.text_area("템플릿 편집", value=default_template, height=350)
-    fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
-
-# 4. 입력 섹션
-st.subheader("📁 스크립트 불러오기")
-uploaded_file = st.file_uploader("메모장(TXT), 워드, PDF 지원", type=["txt", "docx", "pdf"])
-
-final_script = ""
-
-if uploaded_file is not None:
-    try:
-        ftype = uploaded_file.name.split('.')[-1].lower()
-        if ftype == 'txt':
-            raw = uploaded_file.read()
-            try: final_script = raw.decode("utf-8")
-            except: final_script = raw.decode("cp949")
-        elif ftype == 'docx':
-            doc = Document(uploaded_
+비뇨기 질환부터 남성
