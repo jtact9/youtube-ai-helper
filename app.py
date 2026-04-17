@@ -29,7 +29,7 @@ st.markdown("""
     .marquee p {
         display: inline-block;
         padding-left: 100%;
-        animation: marquee 20s linear infinite;
+        animation: marquee 25s linear infinite;
         margin: 0;
     }
     @keyframes marquee {
@@ -45,15 +45,16 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # 2. 최상단 공지사항 출력 (흐르는 자막)
+# 요청하신 '작업 초기화 경고' 문구를 추가했습니다.
 st.markdown("""
     <div class="marquee">
-        <p>🚨 [공지] 에러 발생 시 엔진 종류를 변경해 주세요! 엔진 변경 후에도 에러가 지속되면 1분 뒤 재실행 바랍니다. 
-        버튼 연타는 에러의 원인이 되니 '한 번만' 누르고 대기해 주세요! 🚨</p>
+        <p>🚨 [필독] 생성 도중 페이지를 벗어나거나 업무를 전환하면 진행 중인 작업이 초기화될 수 있습니다! 
+        에러 발생 시 엔진을 변경해 보시고, 지속될 경우 1분 뒤 재실행 바랍니다. 버튼은 '한 번만' 누르고 기다려 주세요! 🚨</p>
     </div>
     """, unsafe_allow_html=True)
 
 # 3. 고정형 핵심 가이드 (정적 안내)
-st.info("💡 **안내:** 생성 버튼을 여러 번 누르면 서버 과부하로 에러가 뜰 수 있습니다. 클릭 후 로딩이 끝날 때까지 기다려 주세요.")
+st.warning("⚠️ **주의:** 작업 도중 왼쪽 메뉴를 바꾸거나 페이지를 새로고침하면 현재까지 입력한 내용과 진행 중인 생성이 초기화됩니다. 결과가 나올 때까지 잠시만 대기해 주세요.")
 
 # 4. 시스템 엔진 설정 (Secrets)
 try:
@@ -144,7 +145,7 @@ elif menu == "📧 비즈니스 격식 변환기":
             except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 8. 기능 3: 콘텐츠 기획 콘티 (v6.3)
+# 8. 기능 3: 콘텐츠 기획 콘티 (v6.4)
 # ==========================================
 elif menu == "📝 콘텐츠 기획 콘티":
     st.title("📝 콘텐츠 기획 콘티 (시즌 7 자유 입력형)")
@@ -164,7 +165,7 @@ elif menu == "📝 콘텐츠 기획 콘티":
         focus3 = st.text_input("주제 3 내용 (심화)", placeholder="예: 제거 수술 과정과 확대 수술 동시 진행 여부")
         focus4 = st.text_input("주제 4 내용 (마무리)", placeholder="예: 사후 관리 및 원장님의 진심어린 당부")
 
-    uploaded_ref = st.file_uploader("레퍼런스 파일 업로드", type=["txt", "docx", "pdf"], key="conti_v6_3")
+    uploaded_ref = st.file_uploader("레퍼런스 파일 업로드", type=["txt", "docx", "pdf"], key="conti_v6_4")
     final_ref = ""
     if uploaded_ref:
         try:
@@ -175,7 +176,7 @@ elif menu == "📝 콘텐츠 기획 콘티":
                 pr = PyPDF2.PdfReader(uploaded_ref)
                 for p in pr.pages: final_ref += (p.extract_text() or "") + "\n"
         except: st.error("파일 로드 실패")
-    else: final_ref = st.text_area("레퍼런스 직접 입력", height=150, key="conti_text_v6_3")
+    else: final_ref = st.text_area("레퍼런스 직접 입력", height=150, key="conti_text_v6_4")
 
     if st.button("💡 맞춤형 콘티 생성"):
         if not final_ref or not client_name: st.warning("필요한 정보를 모두 입력해주세요.")
