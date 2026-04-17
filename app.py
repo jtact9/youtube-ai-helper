@@ -1,34 +1,41 @@
 import streamlit as st
 import google.generativeai as genai
-from google.ai.generativelanguage_v1beta.types import content
+import json
 
-# 1. 페이지 설정
-st.set_page_config(page_title="유로진 부산점 SEO 마스터 v2.6", layout="wide")
+# 1. 페이지 인터페이스 설정
+st.set_page_config(page_title="유로진 부산점 SEO 마스터 v3.0", layout="wide")
 
+# 디자인 테마 설정
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
-    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; }
+    .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; font-size: 1.1em; border: none; }
+    .stButton>button:hover { background-color: #C0392B; color: white; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎥 박징성의 야물딱진 업로드 세팅 툴")
+st.title("🎬 유튜브 업로드 세팅 자동화")
 
-# 2. 사이드바 설정
+# 2. 시스템 엔진 설정 (Streamlit Secrets 활용)
+try:
+    # 시스템 금고에서 키를 자동으로 불러옵니다.
+    api_key = st.secrets["GEMINI_API_KEY"]
+    genai.configure(api_key=api_key)
+except Exception:
+    st.error("⚠️ API 키가 설정되지 않았습니다. Streamlit Cloud의 Settings > Secrets에서 GEMINI_API_KEY를 설정해주세요.")
+    st.stop()
+
+# 사이드바: 통계 및 설정
 with st.sidebar:
-    st.header("⚙️ 시스템 설정")
-    api_key = st.text_input("Gemini API Key", type="password")
-    
-    # 당신의 계정에서 확인된 실존 모델로만 구성 (404 방지)
-    model_options = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-2.0-pro"]
-    selected_model = st.selectbox("사용 가능한 엔진 선택", model_options)
-    
+    st.header("⚙️ 시스템 정보")
+    selected_model = st.selectbox("엔진 선택", ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-1.5-flash"])
     st.divider()
     if 'tokens' not in st.session_state: st.session_state.tokens = 0
-    st.metric("마지막 작업 토큰 수", f"{st.session_state.tokens} pts")
+    st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
+    st.caption("※ 모든 데이터는 5인 팀 공용 할당량 내에서 처리됩니다.")
 
-# 3. 고정 양식 설정
-default_temp = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
+# 3. 유로진 전용 고정 템플릿 (기본값 박제)
+default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
 
 {summary}
 
@@ -44,22 +51,19 @@ default_temp = """💫 남성 건강의 시작, 유로진에서 함께하세요 
 ✔️ 블로그 : https://blog.naver.com/kumhot_22
 ✔️ 카카오톡 상담하기 : https://pf.kakao.com/_BjZTxd"""
 
-with st.expander("🛠️ 설명란 고정 양식 설정", expanded=False):
-    desc_template = st.text_area("템플릿 편집", value=default_temp, height=350)
-    fixed_tags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성성건강")
+with st.expander("🛠️ 설명란 고정 양식 및 프리셋 (필요 시 수정)", expanded=False):
+    desc_template = st.text_area("설명란 템플릿 ({summary} 자리에 요약이 들어갑니다)", value=default_template, height=350)
+    fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
-# 4. 입력 섹션
-script_input = st.text_area("영상 스크립트를 입력하세요", height=300)
+# 4. 메인 워크플로우
+script_text = st.text_area("영상 스크립트를 입력하세요", height=300, placeholder="여기에 스크립트 내용을 붙여넣으세요.")
 
-# 5. 실행 로직 (Response Schema 적용으로 JSON 오류 차단)
-if st.button("🚀 업로드 세팅 데이터 추출하기"):
-    if not api_key or not script_input:
-        st.warning("API 키와 스크립트를 입력하세요.")
+if st.button("🚀 업로드 세팅 추출하기"):
+    if not script_text:
+        st.warning("스크립트를 입력해 주세요.")
     else:
         try:
-            genai.configure(api_key=api_key)
-            
-            # 응답 구조 강제 정의 (AI가 반드시 이 형식으로만 답하게 함)
+            # 구조화된 출력(JSON) 설정
             generation_config = {
                 "response_mime_type": "application/json",
                 "response_schema": {
@@ -72,34 +76,34 @@ if st.button("🚀 업로드 세팅 데이터 추출하기"):
                         "thumbnail": {"type": "array", "items": {"type": "string"}},
                     },
                     "required": ["titles", "summary_content", "tags", "hashtags", "thumbnail"]
-                },
+                }
             }
             
-            model = genai.GenerativeModel(
-                model_name=selected_model,
-                generation_config=generation_config
-            )
+            model = genai.GenerativeModel(model_name=selected_model, generation_config=generation_config)
             
-            with st.spinner(f"{selected_model} 엔진 가동 중..."):
-                prompt = f"유튜브 PD로서 다음 스크립트를 분석하여 메타데이터를 생성하세요: {script_input}"
+            with st.spinner("전문 PD AI가 분석 중입니다..."):
+                prompt = f"당신은 유튜브 SEO 전문가입니다. 다음 스크립트를 분석하여 정보를 추출하세요: {script_text}"
                 response = model.generate_content(prompt)
                 
-                # 결과 데이터 파싱
-                import json
+                # 결과 파싱
                 data = json.loads(response.text)
-                
-                # 템플릿 치환
-                final_desc = desc_template.replace("{summary}", data['summary_content'])
                 st.session_state.tokens = response.usage_metadata.total_token_count
                 
-                st.success("✅ 생성이 완료되었습니다!")
+                # 템플릿 조립
+                final_description = desc_template.replace("{summary}", data['summary_content'])
                 
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.subheader("📋 복사용 설명란")
-                    st.code(f"{final_desc}\n\n{fixed_tags} {data['hashtags']}", language="text")
-                with col2:
-                    st.subheader("💡 추천 제목 & 썸네일")
+                st.success("✅ 분석 완료!")
+                st.toast("데이터 추출 성공!", icon="🚀")
+                
+                # 결과 출력 섹션
+                col_left, col_right = st.columns(2)
+                
+                with col_left:
+                    st.subheader("📋 설명란 복사")
+                    st.code(f"{final_description}\n\n{fixed_hashtags} {data['hashtags']}", language="text")
+                
+                with col_right:
+                    st.subheader("💡 추천 제목")
                     for t in data['titles']: st.write(f"📍 {t}")
                     st.divider()
                     st.write("**썸네일 카피:**")
@@ -107,8 +111,5 @@ if st.button("🚀 업로드 세팅 데이터 추출하기"):
                     st.write("**태그(쉼표 구분):**")
                     st.caption(data['tags'])
                     
-                st.toast("추출 성공!", icon="🚀")
-                
         except Exception as e:
-            st.error(f"시스템 오류 발생: {e}")
-            st.info("API 키가 정확한지, 혹은 모델 선택이 올바른지 다시 확인해 보세요.")
+            st.error(f"구동 중 오류 발생: {e}")
