@@ -20,15 +20,16 @@ st.markdown("""
         border: 2px solid #00FF00; 
         color: #00FF00; 
         font-family: monospace; 
-        font-size: 1.3rem; 
+        font-size: 1.1rem; 
         margin-bottom: 20px;
+        line-height: 1.8;
     }
     .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
     .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v4.3)")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v4.5)")
 
 # 2. 엔진 설정 (Secrets 활용)
 try:
@@ -115,17 +116,22 @@ if st.button("✨ 세팅 데이터 추출하기"):
             }
             model = genai.GenerativeModel(selected_model, generation_config=generation_config)
             
-            with st.spinner("박사원이 전략적 요약을 작성 중..."):
-                # 프롬프트: 4~5줄 분량 및 빌드업 강조
-                prompt = f"""당신은 유튜브 알고리즘을 꿰뚫고 있는 베테랑 PD입니다. 
-                다음 [스크립트]를 바탕으로 시청자의 호기심을 극대화하는 메타데이터를 생성하세요.
+            with st.spinner("박사원의 AI 비서가 50개의 고밀도 태그와 요약을 생성 중..."):
+                # 프롬프트: 태그 50개 생성 및 글자 수 제한 준수 지시
+                prompt = f"""당신은 유튜브 SEO 전문가입니다. 
+                다음 [스크립트]를 바탕으로 최적화된 메타데이터를 생성하세요.
 
                 [요약문(summary_content) 작성 규칙]
-                1. 전체 분량은 반드시 **4~5줄**로 구성하세요.
-                2. 첫 두 줄은 시청자가 겪을 법한 고민이나 상황을 언급하며 공감을 유도하세요.
-                3. 나머지 줄에서 영상의 핵심 가치를 암시하되, 구체적인 결론은 감추어 궁금증을 만드세요.
-                4. "이걸 모르면 생기는 일", "영상 끝에 공개할 해결책" 등의 훅을 사용하세요.
-                5. 가독성을 위해 각 문장 끝에는 줄바꿈(\\n)을 포함하세요.
+                1. 전체 분량은 반드시 4~5줄로 구성하세요.
+                2. 텍스트가 빽빽해 보이지 않게 문맥에 맞는 이모지를 적절히 활용하세요.
+                3. 첫 두 줄은 공감을 유도하고, 나머지 줄은 결론을 감추어 궁금증을 만드세요.
+                4. 각 문장 끝에는 줄바꿈(\\n)을 포함하세요.
+
+                [태그(tags) 작성 규칙]
+                1. 유튜브 태그 입력란에 넣을 키워드를 **약 50개** 내외로 생성하세요.
+                2. 반드시 쉼표(,)로 구분된 하나의 문자열로 출력하세요.
+                3. 유튜브 전체 태그 제한(500자)을 고려하여 너무 긴 문장보다는 핵심 단어와 숏테일 키워드 위주로 촘촘하게 구성하세요.
+                4. 영상 내용과 관련된 직접적인 키워드, 유입이 예상되는 연관 키워드를 모두 포함하세요.
 
                 [스크립트]: {final_script}"""
 
@@ -133,7 +139,7 @@ if st.button("✨ 세팅 데이터 추출하기"):
                 data = json.loads(response.text)
                 st.session_state.tokens = response.usage_metadata.total_token_count
                 
-                st.success("✅ 분석 완료! 박사원이 열심히 분석을 완료했습니다!.")
+                st.success("✅ 분석 완료! 50개 규모의 태그 세트가 준비되었습니다.")
                 
                 # 결과 출력
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
@@ -146,10 +152,12 @@ if st.button("✨ 세팅 데이터 추출하기"):
                     for c in data['thumbnail']: st.info(c)
                 st.markdown('</div>', unsafe_allow_html=True)
 
+                # 태그 섹션 (50개 태그가 잘 보이도록 박스 크기 및 레이아웃 조정)
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                st.markdown('<span class="big-font">🏷️ 검색용 태그 (쉼표 구분)</span>', unsafe_allow_html=True)
+                st.markdown('<span class="big-font">🏷️ 검색용 고밀도 태그 (약 50개)</span>', unsafe_allow_html=True)
                 tag_content = data["tags"]
                 st.markdown(f'<div class="tag-box">{tag_content}</div>', unsafe_allow_html=True)
+                st.caption(f"※ 유튜브 태그 제한(500자)에 맞춰 최적화되었습니다. 복사 후 입력창에 붙여넣으세요.")
                 st.markdown('</div>', unsafe_allow_html=True)
 
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
@@ -158,7 +166,7 @@ if st.button("✨ 세팅 데이터 추출하기"):
                 st.code(f"{final_desc}\n\n{fixed_hashtags} {data['hashtags']}", language="text")
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                st.toast("전략적 요약이 완료되었습니다!")
+                st.toast("박사원님, 50개 고밀도 태그 생성이 완료되었습니다!", icon="🎬")
 
         except Exception as e:
             st.error(f"시스템 오류 발생: {e}")
