@@ -12,7 +12,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎥 박사원의 야물딱진 업로드 세팅 툴")
+st.title("🎥 박징성의 야물딱진 업로드 세팅 툴")
 
 # 2. 사이드바 설정
 with st.sidebar:
