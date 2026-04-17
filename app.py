@@ -12,42 +12,42 @@ st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
     .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; border: none; }
-    .stButton>button:hover { background-color: #C0392B; color: white; }
+    .stButton>button:hover { background-color: #C0392B; }
+    /* 태그 박스 가독성 */
     .tag-box { 
         background-color: #1e1e1e; 
         padding: 20px; 
         border-radius: 10px; 
         border: 2px solid #00FF00; 
         color: #00FF00; 
-        font-family: 'Courier New', Courier, monospace; 
+        font-family: monospace; 
         font-size: 1.3rem; 
-        line-height: 1.6;
+        margin-bottom: 20px;
     }
     .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
+    /* 결과 섹션 배경 */
     .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.7)")
 
-# 2. 시스템 엔진 설정 (Secrets)
+# 2. 시스템 엔진 설정
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 설정 오류: Streamlit Cloud의 Settings > Secrets에서 GEMINI_API_KEY를 설정해주세요.")
+    st.error("⚠️ 설정 오류: Streamlit Secrets에 GEMINI_API_KEY를 등록해주세요.")
     st.stop()
 
 with st.sidebar:
     st.header("⚙️ 박사원의 워크벤치")
-    model_options = ["gemini-2.5-flash", "gemini-2.0-flash"]
-    selected_model = st.selectbox("엔진 선택 (2.5 권장)", model_options)
+    selected_model = st.selectbox("엔진 선택", ["gemini-2.5-flash", "gemini-2.0-flash"])
     st.divider()
-    if 'tokens' not in st.session_state:
-        st.session_state.tokens = 0
+    if 'tokens' not in st.session_state: st.session_state.tokens = 0
     st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
-# 3. 유로진 전용 고정 템플릿
+# 3. 고정 양식 설정
 default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
 
 {summary}
@@ -64,18 +64,64 @@ default_template = """💫 남성 건강의 시작, 유로진에서 함께하세
 ✔️ 블로그 : https://blog.naver.com/kumhot_22
 ✔️ 카카오톡 상담하기 : https://pf.kakao.com/_BjZTxd"""
 
-with st.expander("🛠️ 설명란 고정 양식 및 프리셋 설정", expanded=False):
+with st.expander("🛠️ 설명란 고정 양식 및 프리셋", expanded=False):
     desc_template = st.text_area("템플릿 편집", value=default_template, height=350)
     fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
-# 4. 입력 섹션 (파일 업로드)
+# 4. 입력 섹션 (파일 업로드 기능 강화)
 st.subheader("📁 스크립트 불러오기")
-uploaded_file = st.file_uploader("메모장(TXT), 워드(DOCX), PDF 파일을 업로드하세요", type=["txt", "docx", "pdf"])
+uploaded_file = st.file_uploader("메모장(TXT), 워드, PDF 지원", type=["txt", "docx", "pdf"])
 
 final_script = ""
 
+# 에러가 났던 지점 수정 완료: uploaded_file 변수명 확인 및 콜론(:) 추가
 if uploaded_file is not None:
     try:
-        file_type = uploaded_file.name.split('.')[-1].lower()
-        
-        if file_
+        ftype = uploaded_file.name.split('.')[-1].lower()
+        if ftype == 'txt':
+            raw = uploaded_file.read()
+            try: final_script = raw.decode("utf-8")
+            except: final_script = raw.decode("cp949")
+        elif ftype == 'docx':
+            doc = Document(uploaded_file)
+            final_script = "\n".join([p.text for p in doc.paragraphs])
+        elif ftype == 'pdf':
+            pdf = PyPDF2.PdfReader(uploaded_file)
+            for p in pdf.pages: final_script += p.extract_text() + "\n"
+        st.success(f"✅ {uploaded_file.name} 로드 완료")
+    except Exception as e:
+        st.error(f"파일 읽기 실패: {e}")
+else:
+    final_script = st.text_area("직접 입력", height=200, placeholder="여기에 스크립트를 직접 입력하거나 파일을 업로드하세요.")
+
+# 5. 실행 및 결과 출력
+if st.button("✨ 세팅 데이터 추출하기"):
+    if not final_script:
+        st.warning("스크립트를 먼저 넣어주세요.")
+    else:
+        try:
+            generation_config = {
+                "response_mime_type": "application/json",
+                "response_schema": {
+                    "type": "object",
+                    "properties": {
+                        "titles": {"type": "array", "items": {"type": "string"}},
+                        "summary_content": {"type": "string"},
+                        "tags": {"type": "string"},
+                        "hashtags": {"type": "string"},
+                        "thumbnail": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": ["titles", "summary_content", "tags", "hashtags", "thumbnail"]
+                }
+            }
+            model = genai.GenerativeModel(selected_model, generation_config=generation_config)
+            
+            with st.spinner("박사원의 AI 비서가 정밀 분석 중..."):
+                prompt = f"당신은 전문 유튜브 PD입니다. 스크립트를 분석하여 줄바꿈이 포함된 요약과 SEO 데이터를 생성하세요: {final_script}"
+                response = model.generate_content(prompt)
+                data = json.loads(response.text)
+                st.session_state.tokens = response.usage_metadata.total_token_count
+                
+                st.success("✅ 분석 완료! 아래에서 결과를 확인하세요.")
+                
+                #
