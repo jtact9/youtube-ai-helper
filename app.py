@@ -24,7 +24,7 @@ if st.button("🚀 메타데이터 생성 시작"):
     else:
         try:
             genai.configure(api_key=api_key)
-            model = genai.GenerativeModel('gemini-1.5-pro')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             prompt = f"""
             당신은 전문 유튜브 PD이자 마케터입니다. 아래 제공되는 [영상 스크립트]를 정밀 분석하여 다음 요청사항에 맞춰 답변하세요.
