@@ -12,7 +12,6 @@ from io import BytesIO
 # 1. 페이지 브랜딩 및 디자인 설정
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
-# CSS: UI 스타일 및 애니메이션
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117; }
@@ -31,7 +30,9 @@ st.markdown("""
     }
     .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; border: none; }
     .notice-card { background-color: #21262d; padding: 20px; border-radius: 10px; border-left: 5px solid #E74C3C; margin-bottom: 15px; }
-    .delete-btn>button { background-color: #555 !important; height: 2em !important; font-size: 0.8rem !important; }
+    .tag-box { background-color: #1e1e1e; padding: 20px; border-radius: 10px; border: 2px solid #00FF00; color: #00FF00; font-family: monospace; font-size: 1.1rem; line-height: 1.8; }
+    .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
+    .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -42,9 +43,10 @@ def load_notices():
     if os.path.exists(NOTICES_FILE):
         try:
             with open(NOTICES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                return data if data else []
         except: return []
-    return [{"date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 도중 메뉴 전환 시 작업이 초기화됩니다. 에러 발생 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None}]
+    return [{"date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 도중 메뉴 전환 시 작업이 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 연타 금지! 🚨", "image": None}]
 
 def save_notices(notices):
     with open(NOTICES_FILE, 'w', encoding='utf-8') as f:
@@ -53,7 +55,7 @@ def save_notices(notices):
 if 'notices' not in st.session_state:
     st.session_state.notices = load_notices()
 
-# 3. 최상단 동적 공지사항 (최신 텍스트 공지 연동)
+# 3. 최상단 동적 공지 (최신 텍스트 공지 연동)
 latest_notice = st.session_state.notices[0]['content'] if st.session_state.notices else "현재 등록된 공지사항이 없습니다."
 st.markdown(f'<div class="marquee"><p>{latest_notice}</p></div>', unsafe_allow_html=True)
 
@@ -64,7 +66,7 @@ try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except:
-    st.error("⚠️ Secrets 설정 오류")
+    st.error("⚠️ Secrets 설정 오류 (GEMINI_API_KEY)")
     st.stop()
 
 # 5. 사이드바 메뉴
@@ -73,17 +75,113 @@ with st.sidebar:
     menu = st.radio("업무 선택", ["🎬 유튜브 업로드 세팅", "📧 비즈니스 격식 변환기", "📝 콘텐츠 기획 콘티", "📋 공지게시판"])
     st.divider()
     selected_model = st.selectbox("엔진 선택", ["gemini-2.0-flash", "gemini-2.5-flash"])
+    if 'tokens' not in st.session_state: st.session_state.tokens = 0
+    st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
-# --- 공통 유틸리티: 이미지 인코딩 ---
 def img_to_base64(uploaded_file):
     if uploaded_file is not None:
         return base64.b64encode(uploaded_file.read()).decode()
     return None
 
 # ==========================================
-# 기능 1, 2, 3 (기존 로직 유지)
+# 6. 기능 1: 유튜브 업로드 세팅
 # ==========================================
-# [중략: 유튜브 세팅, 비즈니스 변환, 콘티 기획 로직은 v7.3과 동일하게 작동합니다]
+if menu == "🎬 유튜브 업로드 세팅":
+    st.title("🎬 유튜브 업로드 세팅")
+    with st.expander("🛠️ 설명란 양식 편집", expanded=False):
+        default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫\n\n{summary}\n\n📍 위치 : 부산 부산진구 부전동 257-3\n✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
+        desc_template = st.text_area("템플릿", value=default_template, height=200)
+        fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
+
+    uploaded_file = st.file_uploader("스크립트 파일 업로드", type=["txt", "docx", "pdf"], key="yt_up")
+    final_script = ""
+    if uploaded_file:
+        try:
+            ftype = uploaded_file.name.split('.')[-1].lower()
+            if ftype == 'txt': final_script = uploaded_file.read().decode("utf-8")
+            elif ftype == 'docx': final_script = "\n".join([p.text for p in Document(uploaded_file).paragraphs])
+            elif ftype == 'pdf':
+                pr = PyPDF2.PdfReader(uploaded_file)
+                for p in pr.pages: final_script += (p.extract_text() or "") + "\n"
+        except Exception as e: st.error(f"파일 로드 실패: {e}")
+    else: final_script = st.text_area("직접 입력", height=200, key="yt_text")
+
+    if st.button("🚀 데이터 추출하기"):
+        if not final_script: st.warning("분석할 내용을 입력해주세요.")
+        else:
+            try:
+                model = genai.GenerativeModel(selected_model)
+                with st.spinner("🎬 데이터를 생성 중..."):
+                    prompt = f"유튜브 PD로서 분석해. 요약 4~5줄, 줄바꿈 필수, 이모지 포함. 태그 쉼표 구분 50개. 결과 JSON. {final_script}"
+                    response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                    data = json.loads(response.text)
+                    st.session_state.tokens = response.usage_metadata.total_token_count
+                    st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tag-box">{data.get("tags", "")}</div>', unsafe_allow_html=True)
+                    st.code(f"{desc_template.replace('{summary}', data.get('summary_content', ''))}\n\n{fixed_hashtags}", language="text")
+                    st.markdown('</div>', unsafe_allow_html=True)
+            except Exception as e: st.error(f"오류: {e}")
+
+# ==========================================
+# 7. 기능 2: 비즈니스 격식 변환기
+# ==========================================
+elif menu == "📧 비즈니스 격식 변환기":
+    st.title("📧 비즈니스 격식 변환기")
+    biz_tone = st.selectbox("변환 톤", ["아주 정중하게 (이메일용)", "부드럽고 친절하게 (카톡용)", "단호하고 명확하게 (공문용)"])
+    raw_text = st.text_area("내용 입력", height=200)
+    if st.button("✨ 변환하기"):
+        try:
+            model = genai.GenerativeModel(selected_model)
+            with st.spinner("📧 문장을 다듬는 중..."):
+                prompt = f"비즈니스 전문가로서 '영상팀 박진성 사원' 명의로 다음을 '{biz_tone}'으로 변환. {raw_text}"
+                response = model.generate_content(prompt)
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                st.code(response.text, language="text")
+                st.markdown('</div>', unsafe_allow_html=True)
+        except Exception as e: st.error(f"오류: {e}")
+
+# ==========================================
+# 8. 기능 3: 콘텐츠 기획 콘티 (시즌 7 Style)
+# ==========================================
+elif menu == "📝 콘텐츠 기획 콘티":
+    st.title("📝 콘텐츠 기획 콘티 (시즌 7 Style)")
+    client_name = st.text_input("업체명", value="유로진 부산점")
+    q_count = st.slider("질문 개수", 3, 10, 6)
+    
+    st.markdown("### 🎯 주제별 상세 가이드")
+    st.info("각 주제에서 다룰 핵심 의도를 입력해주세요.")
+    c_t1, c_t2 = st.columns(2)
+    with c_t1:
+        f1 = st.text_input("주제 1", placeholder="도입부 위험성 강조")
+        f2 = st.text_input("주제 2", placeholder="민간요법 팩트체크")
+    with c_t2:
+        f3 = st.text_input("주제 3", placeholder="수술 상세 과정")
+        f4 = st.text_input("주제 4", placeholder="사후 관리 및 당부")
+
+    uploaded_ref = st.file_uploader("레퍼런스 파일", type=["txt", "docx", "pdf"], key="ref_up")
+    final_ref = ""
+    if uploaded_ref:
+        try:
+            ftype = uploaded_ref.name.split('.')[-1].lower()
+            if ftype == 'txt': final_ref = uploaded_ref.read().decode("utf-8")
+            elif ftype == 'docx': final_ref = "\n".join([p.text for p in Document(uploaded_ref).paragraphs])
+            elif ftype == 'pdf':
+                pr = PyPDF2.PdfReader(uploaded_ref)
+                for p in pr.pages: final_ref += (p.extract_text() or "") + "\n"
+        except: st.error("파일 로드 실패")
+    else: final_ref = st.text_area("레퍼런스 직접 입력", height=150)
+
+    if st.button("💡 맞춤형 콘티 생성"):
+        try:
+            model = genai.GenerativeModel(selected_model)
+            with st.spinner("📝 PD님의 의도를 반영한 콘티 설계 중..."):
+                prompt = f"전략가로서 '{client_name}' 콘티 작성. 주제1:{f1}, 주제2:{f2}, 주제3:{f3}, 주제4:{f4}. 시즌 7 형식 준수. 질문 {q_count}개. 레퍼런스:{final_ref}"
+                response = model.generate_content(prompt)
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                st.write(response.text)
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.balloons()
+        except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
 # 9. 기능 4: 공지게시판 (삭제 및 이미지 추가)
@@ -94,10 +192,7 @@ elif menu == "📋 공지게시판":
     with st.expander("➕ 새 공지사항 작성 (관리자 인증)", expanded=False):
         new_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
         new_content = st.text_area("내용 입력")
-        
-        # 이미지 첨부 기능
         uploaded_img = st.file_uploader("사진 첨부 (선택 사항)", type=["png", "jpg", "jpeg"])
-        
         admin_password = st.text_input("보안 비밀번호", type="password", key="reg_pass")
         
         if st.button("📢 공지 등록"):
@@ -105,7 +200,6 @@ elif menu == "📋 공지게시판":
                 if new_content:
                     img_base64 = img_to_base64(uploaded_img)
                     new_notice = {
-                        "id": random.randint(1000, 9999), # 삭제를 위한 임시 ID
                         "date": datetime.now().strftime("%Y-%m-%d"),
                         "tag": new_tag,
                         "content": new_content,
@@ -113,14 +207,11 @@ elif menu == "📋 공지게시판":
                     }
                     st.session_state.notices.insert(0, new_notice)
                     save_notices(st.session_state.notices)
-                    st.success("✅ 공지가 이미지와 함께 등록되었습니다.")
+                    st.success("✅ 공지가 등록되었습니다.")
                     st.rerun()
-            else: st.error("❌ 비밀번호가 틀렸습니다.")
+            else: st.error("❌ 비밀번호 불일치")
 
     st.markdown("---")
-    
-    if not st.session_state.notices:
-        st.write("등록된 공지사항이 없습니다.")
     
     for idx, notice in enumerate(st.session_state.notices):
         with st.container():
@@ -131,19 +222,18 @@ elif menu == "📋 공지게시판":
                 </div>
             """, unsafe_allow_html=True)
             
-            # 이미지 출력
             if notice.get("image"):
-                st.image(base64.b64decode(notice["image"]), width=400)
+                try:
+                    st.image(base64.b64decode(notice["image"]), width=400)
+                except: pass
             
-            # 삭제 기능 (비밀번호 확인 후 삭제)
             with st.popover("🗑️ 삭제"):
-                del_pass = st.text_input(f"삭제 비밀번호 ({notice['date']})", type="password", key=f"del_{idx}")
+                del_pass = st.text_input(f"삭제 비밀번호", type="password", key=f"del_{idx}")
                 if st.button("영구 삭제 확인", key=f"btn_{idx}"):
                     if del_pass == "0914":
                         st.session_state.notices.pop(idx)
                         save_notices(st.session_state.notices)
-                        st.success("공지가 삭제되었습니다.")
+                        st.success("삭제되었습니다.")
                         st.rerun()
-                    else:
-                        st.error("비밀번호 불일치")
+                    else: st.error("비밀번호 불일치")
             st.markdown("<br>", unsafe_allow_html=True)
