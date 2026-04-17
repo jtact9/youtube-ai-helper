@@ -28,7 +28,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v4.3)")
 
 # 2. 엔진 설정 (Secrets 활용)
 try:
@@ -40,7 +40,7 @@ except Exception:
 
 with st.sidebar:
     st.header("⚙️ 박사원의 워크벤치")
-    model_options = ["gemini-2.5-flash", "gemini-2.0-flash"]
+    model_options = ["gemini-2.0-flash", "gemini-2.5-flash"]
     selected_model = st.selectbox("엔진 선택", model_options)
     st.divider()
     if 'tokens' not in st.session_state: st.session_state.tokens = 0
@@ -72,16 +72,13 @@ st.subheader("📁 스크립트 불러오기")
 uploaded_file = st.file_uploader("메모장(TXT), 워드, PDF 지원", type=["txt", "docx", "pdf"])
 
 final_script = ""
-
 if uploaded_file is not None:
     try:
         ftype = uploaded_file.name.split('.')[-1].lower()
         if ftype == 'txt':
             raw = uploaded_file.read()
-            try:
-                final_script = raw.decode("utf-8")
-            except:
-                final_script = raw.decode("cp949")
+            try: final_script = raw.decode("utf-8")
+            except: final_script = raw.decode("cp949")
         elif ftype == 'docx':
             doc = Document(uploaded_file)
             final_script = "\n".join([p.text for p in doc.paragraphs])
@@ -118,15 +115,27 @@ if st.button("✨ 세팅 데이터 추출하기"):
             }
             model = genai.GenerativeModel(selected_model, generation_config=generation_config)
             
-            with st.spinner("박사원의 AI 비서가 분석 중..."):
-                prompt = f"당신은 전문 유튜브 PD입니다. 스크립트를 분석하여 줄바꿈이 포함된 요약과 SEO 데이터를 생성하세요: {final_script}"
+            with st.spinner("박사원의 AI 비서가 4~5줄 분량의 전략적 요약을 작성 중..."):
+                # 프롬프트: 4~5줄 분량 및 빌드업 강조
+                prompt = f"""당신은 유튜브 알고리즘을 꿰뚫고 있는 베테랑 PD입니다. 
+                다음 [스크립트]를 바탕으로 시청자의 호기심을 극대화하는 메타데이터를 생성하세요.
+
+                [요약문(summary_content) 작성 규칙]
+                1. 전체 분량은 반드시 **4~5줄**로 구성하세요.
+                2. 첫 두 줄은 시청자가 겪을 법한 고민이나 상황을 언급하며 공감을 유도하세요.
+                3. 나머지 줄에서 영상의 핵심 가치를 암시하되, 구체적인 결론은 감추어 궁금증을 만드세요.
+                4. "이걸 모르면 생기는 일", "영상 끝에 공개할 해결책" 등의 훅을 사용하세요.
+                5. 가독성을 위해 각 문장 끝에는 줄바꿈(\\n)을 포함하세요.
+
+                [스크립트]: {final_script}"""
+
                 response = model.generate_content(prompt)
                 data = json.loads(response.text)
                 st.session_state.tokens = response.usage_metadata.total_token_count
                 
-                st.success("✅ 분석 완료! 아래에서 결과를 확인하세요.")
+                st.success("✅ 분석 완료! 4~5줄 규모의 최적화된 요약본이 생성되었습니다.")
                 
-                # 결과 출력 섹션 (세로형 배치)
+                # 결과 출력
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
                 c1, c2 = st.columns(2)
                 with c1:
@@ -145,12 +154,11 @@ if st.button("✨ 세팅 데이터 추출하기"):
 
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
                 st.markdown('<span class="big-font">📋 최종 설명란 (복사용)</span>', unsafe_allow_html=True)
-                final_sum = data['summary_content']
-                final_desc = desc_template.replace("{summary}", final_sum)
+                final_desc = desc_template.replace("{summary}", data['summary_content'])
                 st.code(f"{final_desc}\n\n{fixed_hashtags} {data['hashtags']}", language="text")
                 st.markdown('</div>', unsafe_allow_html=True)
                 
-                st.toast("박사원님, 분석이 완벽하게 끝났습니다!", icon="🎬")
+                st.toast("박사원님, 4~5줄 분량의 전략적 요약이 완료되었습니다!")
 
         except Exception as e:
             st.error(f"시스템 오류 발생: {e}")
