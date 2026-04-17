@@ -5,7 +5,7 @@ from docx import Document
 import PyPDF2
 import io
 
-# 1. 페이지 인터페이스 설정
+# 1. 페이지 인터페이스 및 브랜드 설정
 st.set_page_config(page_title="박사원의 유튜브 업로드세팅 툴", layout="wide", page_icon="🎬")
 
 st.markdown("""
@@ -28,24 +28,25 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.8)")
+st.title("🚀 박사원의 유튜브 업로드세팅 툴 (v3.9)")
 
-# 2. 시스템 엔진 설정
+# 2. 시스템 엔진 설정 (Secrets 관리)
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except Exception:
-    st.error("⚠️ 설정 오류: Streamlit Secrets에 GEMINI_API_KEY를 등록해주세요.")
+    st.error("⚠️ 설정 오류: Streamlit Cloud의 Settings > Secrets에 GEMINI_API_KEY를 등록해주세요.")
     st.stop()
 
 with st.sidebar:
     st.header("⚙️ 박사원의 워크벤치")
-    selected_model = st.selectbox("엔진 선택", ["gemini-2.5-flash", "gemini-2.0-flash"])
+    model_options = ["gemini-2.0-flash", "gemini-2.5-flash"]
+    selected_model = st.selectbox("엔진 선택", model_options)
     st.divider()
     if 'tokens' not in st.session_state: st.session_state.tokens = 0
     st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
-# 3. 고정 양식 설정
+# 3. 유로진 전용 고정 템플릿
 default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
 
 {summary}
@@ -80,60 +81,4 @@ if uploaded_file is not None:
             try: final_script = raw.decode("utf-8")
             except: final_script = raw.decode("cp949")
         elif ftype == 'docx':
-            doc = Document(uploaded_file)
-            final_script = "\n".join([p.text for p in doc.paragraphs])
-        elif ftype == 'pdf':
-            pdf = PyPDF2.PdfReader(uploaded_file)
-            for p in pdf.pages:
-                txt = p.extract_text()
-                if txt: final_script += txt + "\n"
-        st.success(f"✅ {uploaded_file.name} 로드 완료")
-    except Exception as e:
-        st.error(f"파일 읽기 실패: {e}")
-else:
-    final_script = st.text_area("직접 입력", height=200, placeholder="여기에 직접 입력하거나 파일을 업로드하세요.")
-
-# 5. 실행 로직 (try-except 구조 정밀 교정)
-if st.button("✨ 세팅 데이터 추출하기"):
-    if not final_script:
-        st.warning("분석할 스크립트를 먼저 입력하거나 파일을 올려주세요.")
-    else:
-        try:
-            generation_config = {
-                "response_mime_type": "application/json",
-                "response_schema": {
-                    "type": "object",
-                    "properties": {
-                        "titles": {"type": "array", "items": {"type": "string"}},
-                        "summary_content": {"type": "string"},
-                        "tags": {"type": "string"},
-                        "hashtags": {"type": "string"},
-                        "thumbnail": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": ["titles", "summary_content", "tags", "hashtags", "thumbnail"]
-                }
-            }
-            model = genai.GenerativeModel(selected_model, generation_config=generation_config)
-            
-            with st.spinner("박사원의 AI 비서가 정밀 분석 중..."):
-                prompt = f"당신은 전문 유튜브 PD입니다. 스크립트를 분석하여 줄바꿈이 포함된 요약과 SEO 데이터를 생성하세요: {final_script}"
-                response = model.generate_content(prompt)
-                data = json.loads(response.text)
-                st.session_state.tokens = response.usage_metadata.total_token_count
-                
-                st.success("✅ 분석 완료! 아래에서 결과를 확인하세요.")
-                
-                # --- 세로형 레이아웃 출력 ---
-                st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                c1, c2 = st.columns(2)
-                with c1:
-                    st.markdown('<span class="big-font">💡 추천 제목 리스트</span>', unsafe_allow_html=True)
-                    for t in data['titles']: st.write(f"📍 **{t}**")
-                with c2:
-                    st.markdown('<span class="big-font">🖼️ 썸네일 카피</span>', unsafe_allow_html=True)
-                    for c in data['thumbnail']: st.info(c)
-                st.markdown('</div>', unsafe_allow_html=True)
-
-                st.markdown('<div class="result-section">', unsafe_allow_html=True)
-                st.markdown('<span class="big-font">🏷️ 검색용 태그 (쉼표 구분)</span>', unsafe_allow_html=True)
-                st.markdown(f'<div class="tag-box">{data["
+            doc = Document(uploaded_
