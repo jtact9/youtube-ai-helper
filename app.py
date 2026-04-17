@@ -27,7 +27,7 @@ if st.button("🚀 메타데이터 생성 시작"):
             
             # 확인된 리스트 중 가장 최적화된 모델 선택
             # 'models/' 접두사를 제외한 순수 모델명을 사용합니다.
-            model = genai.GenerativeModel('gemini-2.0-flash')
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             with st.spinner("최신 Gemini 2.0 AI가 스크립트를 정밀 분석 중입니다..."):
                 prompt = f"""
