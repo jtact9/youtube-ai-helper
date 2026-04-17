@@ -29,14 +29,15 @@ st.markdown("""
         100% { transform: translate(-100%, 0); }
     }
     .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white; font-weight: bold; border: none; }
-    .notice-card { background-color: #21262d; padding: 20px; border-radius: 10px; border-left: 5px solid #E74C3C; margin-bottom: 15px; }
+    .notice-card { background-color: #21262d; padding: 20px; border-radius: 10px; border-left: 5px solid #E74C3C; margin-bottom: 15px; position: relative; }
+    .pinned-badge { background-color: #f1c40f; color: #000; padding: 2px 8px; border-radius: 5px; font-size: 0.8rem; font-weight: bold; margin-left: 10px; }
     .tag-box { background-color: #1e1e1e; padding: 20px; border-radius: 10px; border: 2px solid #00FF00; color: #00FF00; font-family: monospace; font-size: 1.1rem; line-height: 1.8; }
     .big-font { font-size: 1.4rem !important; font-weight: 700; color: #FFFFFF; margin-bottom: 15px; display: block; }
     .result-section { background-color: #161b22; padding: 25px; border-radius: 15px; margin-top: 20px; border: 1px solid #30363d; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 저장 및 이미지 처리 로직
+# 2. 데이터 저장 및 처리 로직
 NOTICES_FILE = 'notices.json'
 
 def load_notices():
@@ -46,7 +47,7 @@ def load_notices():
                 data = json.load(f)
                 return data if data else []
         except: return []
-    return [{"date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 도중 메뉴 전환 시 작업이 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 연타 금지! 🚨", "image": None}]
+    return [{"date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 도중 메뉴 전환 시 작업이 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": False}]
 
 def save_notices(notices):
     with open(NOTICES_FILE, 'w', encoding='utf-8') as f:
@@ -55,10 +56,15 @@ def save_notices(notices):
 if 'notices' not in st.session_state:
     st.session_state.notices = load_notices()
 
-# 3. 최상단 동적 공지 (최신 텍스트 공지 연동)
-latest_notice = st.session_state.notices[0]['content'] if st.session_state.notices else "현재 등록된 공지사항이 없습니다."
-st.markdown(f'<div class="marquee"><p>{latest_notice}</p></div>', unsafe_allow_html=True)
+# 3. 최상단 동적 공지 (고정 기능 반영)
+# 고정된 공지가 있는지 확인
+pinned_list = [n for n in st.session_state.notices if n.get('pinned', False)]
+if pinned_list:
+    marquee_content = f"📌 [고정공지] {pinned_list[0]['content']}"
+else:
+    marquee_content = st.session_state.notices[0]['content'] if st.session_state.notices else "현재 등록된 공지사항이 없습니다."
 
+st.markdown(f'<div class="marquee"><p>{marquee_content}</p></div>', unsafe_allow_html=True)
 st.warning("⚠️ **주의:** 생성 중 메뉴 이동 시 데이터가 초기화됩니다. 결과 도출까지 현재 화면을 유지해 주세요.")
 
 # 4. 시스템 엔진 설정
@@ -84,7 +90,7 @@ def img_to_base64(uploaded_file):
     return None
 
 # ==========================================
-# 6. 기능 1: 유튜브 업로드 세팅
+# 기능 1: 유튜브 업로드 세팅
 # ==========================================
 if menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
@@ -123,7 +129,7 @@ if menu == "🎬 유튜브 업로드 세팅":
             except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 7. 기능 2: 비즈니스 격식 변환기
+# 기능 2: 비즈니스 격식 변환기
 # ==========================================
 elif menu == "📧 비즈니스 격식 변환기":
     st.title("📧 비즈니스 격식 변환기")
@@ -141,15 +147,13 @@ elif menu == "📧 비즈니스 격식 변환기":
         except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 8. 기능 3: 콘텐츠 기획 콘티 (시즌 7 Style)
+# 기능 3: 콘텐츠 기획 콘티 (시즌 7 Style)
 # ==========================================
 elif menu == "📝 콘텐츠 기획 콘티":
     st.title("📝 콘텐츠 기획 콘티 (시즌 7 Style)")
     client_name = st.text_input("업체명", value="유로진 부산점")
     q_count = st.slider("질문 개수", 3, 10, 6)
-    
     st.markdown("### 🎯 주제별 상세 가이드")
-    st.info("각 주제에서 다룰 핵심 의도를 입력해주세요.")
     c_t1, c_t2 = st.columns(2)
     with c_t1:
         f1 = st.text_input("주제 1", placeholder="도입부 위험성 강조")
@@ -174,7 +178,7 @@ elif menu == "📝 콘텐츠 기획 콘티":
     if st.button("💡 맞춤형 콘티 생성"):
         try:
             model = genai.GenerativeModel(selected_model)
-            with st.spinner("📝 PD님의 의도를 반영한 콘티 설계 중..."):
+            with st.spinner("📝 기획 의도를 반영한 콘티 설계 중..."):
                 prompt = f"전략가로서 '{client_name}' 콘티 작성. 주제1:{f1}, 주제2:{f2}, 주제3:{f3}, 주제4:{f4}. 시즌 7 형식 준수. 질문 {q_count}개. 레퍼런스:{final_ref}"
                 response = model.generate_content(prompt)
                 st.markdown('<div class="result-section">', unsafe_allow_html=True)
@@ -184,7 +188,7 @@ elif menu == "📝 콘텐츠 기획 콘티":
         except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 9. 기능 4: 공지게시판 (삭제 및 이미지 추가)
+# 9. 기능 4: 공지게시판 (고정 및 삭제 기능)
 # ==========================================
 elif menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
@@ -203,7 +207,8 @@ elif menu == "📋 공지게시판":
                         "date": datetime.now().strftime("%Y-%m-%d"),
                         "tag": new_tag,
                         "content": new_content,
-                        "image": img_base64
+                        "image": img_base64,
+                        "pinned": False
                     }
                     st.session_state.notices.insert(0, new_notice)
                     save_notices(st.session_state.notices)
@@ -215,25 +220,44 @@ elif menu == "📋 공지게시판":
     
     for idx, notice in enumerate(st.session_state.notices):
         with st.container():
+            is_pinned = notice.get("pinned", False)
+            pin_label = "📌 고정됨" if is_pinned else ""
+            
             st.markdown(f"""
                 <div class="notice-card">
-                    <small>[{notice['date']}] <b>{notice['tag']}</b></small><br>
+                    <small>[{notice['date']}] <b>{notice['tag']}</b> <span class="pinned-badge">{pin_label}</span></small><br>
                     <p style="font-size: 1.1rem; margin-top: 10px;">{notice['content']}</p>
                 </div>
             """, unsafe_allow_html=True)
             
             if notice.get("image"):
-                try:
-                    st.image(base64.b64decode(notice["image"]), width=400)
+                try: st.image(base64.b64decode(notice["image"]), width=400)
                 except: pass
             
-            with st.popover("🗑️ 삭제"):
-                del_pass = st.text_input(f"삭제 비밀번호", type="password", key=f"del_{idx}")
-                if st.button("영구 삭제 확인", key=f"btn_{idx}"):
-                    if del_pass == "0914":
-                        st.session_state.notices.pop(idx)
-                        save_notices(st.session_state.notices)
-                        st.success("삭제되었습니다.")
-                        st.rerun()
-                    else: st.error("비밀번호 불일치")
+            col_p1, col_p2, _ = st.columns([1, 1, 4])
+            with col_p1:
+                # 고정 기능 팝오버
+                with st.popover("📌 고정 설정"):
+                    p_pass = st.text_input("비밀번호", type="password", key=f"pin_p_{idx}")
+                    if st.button("상단 고정/해제", key=f"pin_b_{idx}"):
+                        if p_pass == "0914":
+                            # 다른 모든 공지의 고정 해제 (하나만 고정 가능)
+                            if not is_pinned:
+                                for n in st.session_state.notices: n["pinned"] = False
+                                st.session_state.notices[idx]["pinned"] = True
+                            else:
+                                st.session_state.notices[idx]["pinned"] = False
+                            save_notices(st.session_state.notices)
+                            st.rerun()
+                        else: st.error("비밀번호 불일치")
+            
+            with col_p2:
+                with st.popover("🗑️ 삭제"):
+                    del_pass = st.text_input("비밀번호", type="password", key=f"del_p_{idx}")
+                    if st.button("삭제 확인", key=f"del_b_{idx}"):
+                        if del_pass == "0914":
+                            st.session_state.notices.pop(idx)
+                            save_notices(st.session_state.notices)
+                            st.rerun()
+                        else: st.error("비밀번호 불일치")
             st.markdown("<br>", unsafe_allow_html=True)
