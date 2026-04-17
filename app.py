@@ -14,7 +14,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🎬 유튜브 업로드 세팅 자동화")
+st.title("🎬 징성씨의 유튜브 업로드세팅 툴")
 
 # 2. 시스템 엔진 설정 (Streamlit Secrets 활용)
 try:
