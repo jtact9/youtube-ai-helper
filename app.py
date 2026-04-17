@@ -113,4 +113,25 @@ if st.button("✨ 세팅 데이터 추출하기"):
 
                 스크립트: {final_script}"""
                 
-                response = model.generate_content(prompt, generation
+                response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
+                data = json.loads(response.text)
+                st.session_state.tokens = response.usage_metadata.total_token_count
+                
+                # 결과 출력
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                st.markdown(f'<span class="big-font">🏷️ 검색용 고밀도 태그</span>', unsafe_allow_html=True)
+                st.markdown(f'<div class="tag-box">{data.get("tags", "")}</div>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+                st.markdown('<div class="result-section">', unsafe_allow_html=True)
+                st.markdown(f'<span class="big-font">📋 최종 설명란 (복사용)</span>', unsafe_allow_html=True)
+                
+                # AI가 보낸 줄바꿈이 포함된 summary_content를 템플릿에 주입
+                summary = data.get("summary_content", "")
+                final_desc = desc_template.replace("{summary}", summary)
+                
+                st.code(f"{final_desc}\n\n{fixed_hashtags}", language="text")
+                st.markdown('</div>', unsafe_allow_html=True)
+                st.toast("박사원님, 정렬까지 깔끔하게 완료!")
+        except Exception as e:
+            st.error(f"오류: {e}")
