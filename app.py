@@ -9,7 +9,7 @@ import random
 from datetime import datetime
 from io import BytesIO
 
-# 1. 페이지 브랜딩 및 디자인
+# 1. 페이지 브랜딩 및 디자인 설정
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
 st.markdown("""
@@ -29,17 +29,17 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 영구 저장 및 자동 복구 로직
+# 2. 데이터 저장 및 복구 로직
 NOTICES_FILE = 'notices.json'
 
 def load_notices():
-    default_notice = [{"id": 123456, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 금지! 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 비번: 0914 🚨", "image": None, "pinned": True}]
+    # 기본 공지에서 비밀번호 정보 삭제
+    default_notice = [{"id": 123456, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 금지! 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
     if os.path.exists(NOTICES_FILE):
         try:
             with open(NOTICES_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 if not data: return default_notice
-                # KeyError 원천 차단: 모든 공지에 필수 키(id, pinned 등) 강제 주입
                 for item in data:
                     if not isinstance(item, dict): continue
                     if 'id' not in item: item['id'] = random.randint(100000, 999999)
@@ -80,7 +80,7 @@ with st.sidebar:
 def img_to_base64(file):
     return base64.b64encode(file.read()).decode() if file else None
 
-# --- 각 기능별 로직 ---
+# --- 각 기능 로직 ---
 if menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
     with st.expander("🛠️ 설명란 양식 편집"):
@@ -142,11 +142,12 @@ elif menu == "📝 콘텐츠 기획 콘티":
 
 elif menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
-    with st.expander("➕ 새 공지 등록 (비번: 0914)"):
+    # 수정 지점: 레이블을 '관리자 전용'으로 변경
+    with st.expander("➕ 새 공지 등록 (관리자 전용)"):
         n_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
         n_content = st.text_area("내용")
         n_img = st.file_uploader("이미지", type=["png", "jpg"])
-        n_pass = st.text_input("비밀번호", type="password")
+        n_pass = st.text_input("관리자 인증 번호", type="password")
         if st.button("📢 등록"):
             if n_pass == "0914" and n_content:
                 new = {"id": random.randint(100000, 999999), "date": datetime.now().strftime("%Y-%m-%d"), "tag": n_tag, "content": n_content, "image": img_to_base64(n_img), "pinned": False}
@@ -154,30 +155,20 @@ elif menu == "📋 공지게시판":
             else: st.error("인증 실패")
 
     st.markdown("---")
-    # 정렬: 고정 게시물 최상단 배치
     sorted_notices = sorted(st.session_state.notices, key=lambda x: x.get('pinned', False), reverse=True)
-    
     for n in sorted_notices:
-        # KeyError 방어 로직: id가 없는 항목은 패스하거나 수정
         notice_id = n.get('id')
         if not notice_id: continue
-        
-        # 실제 데이터 인덱스 찾기
-        idx_list = [i for i, item in enumerate(st.session_state.notices) if item.get('id') == notice_id]
-        if not idx_list: continue
-        idx = idx_list[0]
-        
+        idx = next(i for i, item in enumerate(st.session_state.notices) if item.get('id') == notice_id)
         is_p = n.get("pinned", False)
         st.markdown(f'<div class="{"notice-card-pinned" if is_p else "notice-card"}"><small>[{n.get("date", "")}] <b>{n.get("tag", "")}</b> {"📌 고정됨" if is_p else ""}</small><br><p>{n.get("content", "")}</p></div>', unsafe_allow_html=True)
-        
         if n.get("image"):
             try: st.image(base64.b64decode(n["image"]), width=400)
             except: pass
-            
         c1, c2, _ = st.columns([1, 1, 4])
         with c1:
             with st.popover("📌 고정"):
-                if st.text_input("비번", type="password", key=f"p_{notice_id}") == "0914":
+                if st.text_input("인증", type="password", key=f"p_{notice_id}") == "0914":
                     if st.button("설정/해제", key=f"pb_{notice_id}"):
                         if not is_p:
                             for item in st.session_state.notices: item["pinned"] = False
@@ -186,6 +177,6 @@ elif menu == "📋 공지게시판":
                         save_notices(st.session_state.notices); st.rerun()
         with c2:
             with st.popover("🗑️ 삭제"):
-                if st.text_input("비번", type="password", key=f"d_{notice_id}") == "0914":
+                if st.text_input("인증", type="password", key=f"d_{notice_id}") == "0914":
                     if st.button("확인", key=f"db_{notice_id}"):
                         st.session_state.notices.pop(idx); save_notices(st.session_state.notices); st.rerun()
