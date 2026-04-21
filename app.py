@@ -9,7 +9,7 @@ import random
 from datetime import datetime
 from io import BytesIO
 
-# 1. 페이지 브랜딩 및 디자인 (다크 테마 고정 및 라이트 모드 대응)
+# 1. 페이지 브랜딩 및 디자인 설정 (다크 테마 및 라이트 모드 시인성 강제 고정)
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
 st.markdown("""
@@ -28,25 +28,27 @@ st.markdown("""
     .notice-card-pinned { background-color: #2d333b; padding: 20px; border-radius: 10px; border-left: 8px solid #f1c40f; margin-bottom: 15px; border-top: 1px solid #f1c40f; color: #FFFFFF !important; }
     .notice-card { background-color: #21262d; padding: 20px; border-radius: 10px; border-left: 5px solid #E74C3C; margin-bottom: 15px; color: #FFFFFF !important; }
     .tag-box { background-color: #1e1e1e; padding: 20px; border-radius: 10px; border: 2px solid #00FF00; color: #00FF00 !important; font-family: monospace; font-size: 1rem; line-height: 1.6; word-break: break-all; }
-    .result-section { background-color: #161b22; padding: 20px; border-radius: 15px; border: 1px solid #30363d; margin-top: 10px; }
     label, p, span, h1, h2, h3 { color: #FFFFFF !important; }
+    .stTextArea textarea, .stTextInput input { background-color: #1c2128 !important; color: #FFFFFF !important; border: 1px solid #30363d !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 저장 로직
+# 2. 데이터 저장 및 자동 복구 로직 (KeyError 완전 방지)
 NOTICES_FILE = 'notices.json'
+
 def load_notices():
-    default = [{"id": 1, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 시 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
+    default_notice = [{"id": 1, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 시 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
     if os.path.exists(NOTICES_FILE):
         try:
             with open(NOTICES_FILE, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 for item in data:
+                    if not isinstance(item, dict): continue
                     if 'id' not in item: item['id'] = random.randint(100000, 999999)
                     if 'pinned' not in item: item['pinned'] = False
                 return data
-        except: return default
-    return default
+        except: return default_notice
+    return default_notice
 
 def save_notices(notices):
     with open(NOTICES_FILE, 'w', encoding='utf-8') as f:
@@ -55,7 +57,7 @@ def save_notices(notices):
 if 'notices' not in st.session_state:
     st.session_state.notices = load_notices()
 
-# 3. 상단 자막 공지
+# 3. 최상단 동적 공지
 pinned_list = [n for n in st.session_state.notices if n.get('pinned', False)]
 marquee_content = f"📌 [고정] {pinned_list[0]['content']}" if pinned_list else (st.session_state.notices[0]['content'] if st.session_state.notices else "공지 없음")
 st.markdown(f'<div class="marquee"><p>{marquee_content}</p></div>', unsafe_allow_html=True)
@@ -65,21 +67,23 @@ try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except:
-    st.error("⚠️ Secrets에 GEMINI_API_KEY를 등록하세요.")
+    st.error("⚠️ Secrets 설정에서 GEMINI_API_KEY를 확인하세요.")
     st.stop()
 
-# 5. 사이드바 메뉴
+# 5. 사이드바 구성 (공지게시판 최상단)
 with st.sidebar:
     st.title("🛠️ 워크벤치")
     menu = st.radio("업무 선택", ["📋 공지게시판", "🎬 유튜브 업로드 세팅", "📧 비즈니스 격식 변환기", "📝 콘텐츠 기획 콘티"])
     st.divider()
     selected_model = st.selectbox("엔진 선택", ["gemini-2.0-flash", "gemini-2.5-flash"])
+    if 'tokens' not in st.session_state: st.session_state.tokens = 0
+    st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
 def img_to_base64(file):
     return base64.b64encode(file.read()).decode() if file else None
 
 # ==========================================
-# 6. 기능 1: 공지게시판 (생략 없이 유지)
+# 6. 기능 1: 공지게시판 (삭제 및 고정 포함)
 # ==========================================
 if menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
@@ -87,7 +91,7 @@ if menu == "📋 공지게시판":
         n_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
         n_content = st.text_area("내용")
         n_img = st.file_uploader("이미지 첨부", type=["png", "jpg", "jpeg"])
-        n_pass = st.text_input("인증 번호", type="password")
+        n_pass = st.text_input("관리자 인증 번호", type="password")
         if st.button("📢 등록"):
             if n_pass == "0914" and n_content:
                 img_data = img_to_base64(n_img)
@@ -122,13 +126,19 @@ if menu == "📋 공지게시판":
                         st.session_state.notices.pop(idx); save_notices(st.session_state.notices); st.rerun()
 
 # ==========================================
-# 7. 기능 2: 유튜브 업로드 세팅 (v8.7 핵심 수정)
+# 7. 기능 2: 유튜브 업로드 세팅 (레이아웃 및 데이터 보정)
 # ==========================================
 elif menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
     
     with st.expander("🛠️ 설명란 양식 편집"):
-        default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫\n\n{summary}\n\n📍 위치 : 부산 부산진구 부전동 257-3\n✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
+        # 이미지 3c5a3c.png 에러 수정: 따옴표를 정확히 닫았습니다.
+        default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫
+
+{summary}
+
+📍 위치 : 부산 부산진구 부전동 257-3
+✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
         desc_template = st.text_area("템플릿", value=default_template, height=180)
         fixed_hashtags = st.text_input("고정 해시태그", value="#유로진남성의원 #부산비뇨기과 #남성건강")
 
@@ -149,50 +159,50 @@ elif menu == "🎬 유튜브 업로드 세팅":
         else:
             try:
                 model = genai.GenerativeModel(selected_model)
-                with st.spinner("🎬 최적화된 데이터를 생성 중..."):
-                    # 프롬프트: 제목, 썸네일 카피 명시적 요청
-                    prompt = f"""유튜브 PD로서 다음 스크립트를 분석해. 
-                    1) 요약: 4~5줄, 줄바꿈 필수, 이모지 포함, 호기심 유발 
-                    2) 추천 제목: 클릭을 부르는 제목 3개
-                    3) 썸네일 카피: 강렬한 썸네일 문구 3개
-                    4) 태그: 쉼표로만 구분된 관련 태그 50개(대괄호/따옴표 금지)
-                    결과는 JSON 형식으로. 스크립트: {final_script}"""
+                with st.spinner("🎬 데이터를 생성 중..."):
+                    # 프롬프트 고도화: 요약, 제목, 썸네일 카피 명시적 요청
+                    prompt = f"""유튜브 PD로서 다음 스크립트를 분석해.
+                    1. 요약: 4~5줄, 줄바꿈 필수, 이모지 포함, 호기심 유발 (key: "요약")
+                    2. 추천 제목: 클릭을 유도하는 제목 3개 (key: "제목")
+                    3. 썸네일 카피: 강렬한 문구 3개 (key: "썸네일")
+                    4. 태그: 쉼표로 구분된 50개 키워드. 특수문자나 따옴표 금지 (key: "태그")
+                    결과를 JSON으로 줘. 스크립트: {final_script}"""
                     
                     response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
                     data = json.loads(response.text)
+                    st.session_state.tokens = response.usage_metadata.total_token_count
                     
-                    # 태그 포맷 후처리
-                    raw_tags = data.get("tags", "")
-                    if isinstance(raw_tags, list): clean_tags = ", ".join(raw_tags)
-                    else: clean_tags = str(raw_tags).replace("[", "").replace("]", "").replace("'", "").replace('"', "")
-
-                    # --- UI 레이아웃 구성 (image_926942.jpg 스타일) ---
-                    col_left, col_right = st.columns([1, 1])
+                    # 레이아웃 구성: 좌측 설명란 / 우측 추천 정보
+                    col_l, col_r = st.columns(2)
                     
-                    with col_left:
+                    with col_l:
                         st.markdown("### 📋 복사용 설명란")
-                        summary = data.get("요약", data.get("summary_content", ""))
-                        final_desc = desc_template.replace("{summary}", summary)
+                        # 데이터 매핑 보정
+                        summary_val = data.get("요약", "요약 데이터를 생성하지 못했습니다.")
+                        final_desc = desc_template.replace("{summary}", summary_val)
                         st.code(f"{final_desc}\n\n{fixed_hashtags}", language="text")
                     
-                    with col_right:
+                    with col_r:
                         st.markdown("### 💡 추천 제목 & 썸네일")
-                        titles = data.get("추천 제목", data.get("titles", []))
+                        titles = data.get("제목", [])
                         for t in titles: st.write(f"📍 {t}")
-                        
                         st.divider()
                         st.markdown("#### 🖼️ 썸네일 카피 추천")
-                        copies = data.get("썸네일 카피", data.get("thumbnail_copies", []))
+                        copies = data.get("썸네일", [])
                         for c in copies: st.info(f"✨ {c}")
 
                     st.markdown("---")
                     st.markdown("### 🏷️ 태그 (쉼표 구분)")
+                    # 태그 포맷 보정
+                    raw_tags = data.get("태그", "")
+                    if isinstance(raw_tags, list): clean_tags = ", ".join(raw_tags)
+                    else: clean_tags = str(raw_tags).replace("[", "").replace("]", "").replace("'", "").replace('"', "")
                     st.markdown(f'<div class="tag-box">{clean_tags}</div>', unsafe_allow_html=True)
                     
             except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 8. 기능 3 & 4 (기존 로직 유지)
+# 8. 기능 3: 비즈니스 격식 변환기
 # ==========================================
 elif menu == "📧 비즈니스 격식 변환기":
     st.title("📧 비즈니스 격식 변환기")
@@ -206,20 +216,42 @@ elif menu == "📧 비즈니스 격식 변환기":
             st.code(response.text, language="text")
         except Exception as e: st.error(f"오류: {e}")
 
+# ==========================================
+# 9. 기능 4: 콘텐츠 기획 콘티 (시즌 7 메커니즘 탑재)
+# ==========================================
 elif menu == "📝 콘텐츠 기획 콘티":
     st.title("📝 콘텐츠 기획 콘티 (시즌 7 Style)")
     client_name = st.text_input("업체명", value="유로진 부산점")
     q_count = st.slider("질문 개수", 3, 10, 6)
+    
+    st.markdown("### 🎯 주제별 상세 가이드")
+    # 레이블 수정: 박 PD님 -> PD님
+    st.info("각 주제에서 어떤 내용을 중점적으로 다룰지 PD님의 의도를 적어주세요.")
+    
     c1, c2 = st.columns(2)
-    with c1: f1 = st.text_input("주제 1 가이드", value="도입부 위험성 강조"); f2 = st.text_input("주제 2 가이드", value="민간요법 팩트체크")
-    with c2: f3 = st.text_input("주제 3 가이드", value="수술 상세 과정"); f4 = st.text_input("주제 4 가이드", value="사후 관리 및 당부")
+    with c1:
+        f1 = st.text_input("주제 1 가이드", value="도입부 위험성 강조")
+        f2 = st.text_input("주제 2 가이드", value="민간요법 팩트체크")
+    with c2:
+        f3 = st.text_input("주제 3 가이드", value="수술 상세 과정")
+        f4 = st.text_input("주제 4 가이드", value="사후 관리 및 당부")
+
     ref_text = st.text_area("레퍼런스 입력", height=150)
     if st.button("💡 시즌 7 스타일 콘티 생성"):
         try:
             model = genai.GenerativeModel(selected_model)
-            prompt = f"""업체 '{client_name}'를 위한 시즌 7 스타일 콘티를 작성해.
-            [가이드라인] 주제1:{f1}, 주제2:{f2}, 주제3:{f3}, 주제4:{f4}
-            [형식] 각 주제는 '주제 X. [제목]'으로 시작하고 그 밑에 '핵심 포인트 : [한 줄 요약]' 명시. 질문은 구어체로 {q_count}개씩. 레퍼런스: {ref_text}"""
+            # 시즌 7 메커니즘: 주제-핵심포인트-질문리스트 구성 강제 [cite: 1, 2, 14, 15]
+            prompt = f"""당신은 전문 콘텐츠 전략가입니다. 업체 '{client_name}'를 위한 시즌 7 스타일의 콘티를 작성하세요.
+            [가이드] 주제1:{f1}, 주제2:{f2}, 주제3:{f3}, 주제4:{f4}
+            [형식 규칙]
+            - 각 주제는 '주제 X. [제목]'으로 시작.
+            - 제목 바로 아래 '핵심 포인트 : [한 줄 요약]' 명시.
+            - 질문은 반드시 '#' 번호를 매기고 구어체(예: '원장님, ~인가요?')로 {q_count}개씩 작성.
+            레퍼런스: {ref_text}"""
+            
             response = model.generate_content(prompt)
-            st.write(response.text); st.balloons()
+            st.markdown('<div class="notice-card">', unsafe_allow_html=True)
+            st.write(response.text)
+            st.markdown('</div>', unsafe_allow_html=True)
+            st.balloons()
         except Exception as e: st.error(f"오류: {e}")
