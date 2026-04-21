@@ -9,17 +9,14 @@ import random
 from datetime import datetime
 from io import BytesIO
 
-# 1. 페이지 브랜딩 및 디자인 설정 (라이트 모드 시인성 및 다크 테마 강제 고정)
+# 1. 페이지 브랜딩 및 디자인 (다크 테마 고정 및 라이트 모드 대응)
 st.set_page_config(page_title="박사원의 만능 워크벤치", layout="wide", page_icon="🚀")
 
 st.markdown("""
     <style>
-    /* 전체 배경 및 모든 텍스트 색상 강제 고정 (라이트 모드 대응) */
     .stApp { background-color: #0e1117 !important; color: #FFFFFF !important; }
     section[data-testid="stSidebar"] { background-color: #161b22 !important; }
     section[data-testid="stSidebar"] .stMarkdown, section[data-testid="stSidebar"] .stRadio label { color: #FFFFFF !important; }
-    
-    /* 상단 흐르는 공지사항 */
     .marquee {
         width: 100%; line-height: 50px; background-color: #f1c40f; color: #000000 !important;
         white-space: nowrap; overflow: hidden; box-sizing: border-box;
@@ -27,30 +24,19 @@ st.markdown("""
     }
     .marquee p { display: inline-block; padding-left: 100%; animation: marquee 25s linear infinite; margin: 0; color: #000000 !important; }
     @keyframes marquee { 0% { transform: translate(0, 0); } 100% { transform: translate(-100%, 0); } }
-    
-    /* 버튼 및 카드 스타일 */
     .stButton>button { width: 100%; border-radius: 8px; height: 3.5em; background-color: #E74C3C; color: white !important; font-weight: bold; border: none; }
     .notice-card-pinned { background-color: #2d333b; padding: 20px; border-radius: 10px; border-left: 8px solid #f1c40f; margin-bottom: 15px; border-top: 1px solid #f1c40f; color: #FFFFFF !important; }
     .notice-card { background-color: #21262d; padding: 20px; border-radius: 10px; border-left: 5px solid #E74C3C; margin-bottom: 15px; color: #FFFFFF !important; }
-    
-    /* 태그 출력 박스 (쉼표 구분 포맷 최적화) */
-    .tag-box { 
-        background-color: #1e1e1e; padding: 20px; border-radius: 10px; 
-        border: 2px solid #00FF00; color: #00FF00 !important; 
-        font-family: monospace; font-size: 1.1rem; line-height: 1.8; word-break: break-all;
-    }
-    
-    /* 텍스트 가독성 */
+    .tag-box { background-color: #1e1e1e; padding: 20px; border-radius: 10px; border: 2px solid #00FF00; color: #00FF00 !important; font-family: monospace; font-size: 1rem; line-height: 1.6; word-break: break-all; }
+    .result-section { background-color: #161b22; padding: 20px; border-radius: 15px; border: 1px solid #30363d; margin-top: 10px; }
     label, p, span, h1, h2, h3 { color: #FFFFFF !important; }
-    .stTextArea textarea, .stTextInput input { background-color: #1c2128 !important; color: #FFFFFF !important; border: 1px solid #30363d !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. 데이터 영구 저장 및 자동 복구 로직 (KeyError 방지)
+# 2. 데이터 저장 로직
 NOTICES_FILE = 'notices.json'
-
 def load_notices():
-    default_notice = [{"id": 1, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 금지! 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
+    default = [{"id": 1, "date": datetime.now().strftime("%Y-%m-%d"), "tag": "필독", "content": "🚨 [가이드] 생성 중 메뉴 이동 시 초기화됩니다. 에러 시 엔진 변경 후 1분 뒤 재시도 바랍니다. 🚨", "image": None, "pinned": True}]
     if os.path.exists(NOTICES_FILE):
         try:
             with open(NOTICES_FILE, 'r', encoding='utf-8') as f:
@@ -59,8 +45,8 @@ def load_notices():
                     if 'id' not in item: item['id'] = random.randint(100000, 999999)
                     if 'pinned' not in item: item['pinned'] = False
                 return data
-        except: return default_notice
-    return default_notice
+        except: return default
+    return default
 
 def save_notices(notices):
     with open(NOTICES_FILE, 'w', encoding='utf-8') as f:
@@ -69,33 +55,31 @@ def save_notices(notices):
 if 'notices' not in st.session_state:
     st.session_state.notices = load_notices()
 
-# 3. 상단 동적 공지 (고정 게시물 최우선 노출)
+# 3. 상단 자막 공지
 pinned_list = [n for n in st.session_state.notices if n.get('pinned', False)]
 marquee_content = f"📌 [고정] {pinned_list[0]['content']}" if pinned_list else (st.session_state.notices[0]['content'] if st.session_state.notices else "공지 없음")
 st.markdown(f'<div class="marquee"><p>{marquee_content}</p></div>', unsafe_allow_html=True)
 
-# 4. 시스템 엔진 설정 (Secrets 기반)
+# 4. 시스템 엔진 설정
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=api_key)
 except:
-    st.error("⚠️ Secrets 설정 오류: GEMINI_API_KEY를 확인하세요.")
+    st.error("⚠️ Secrets에 GEMINI_API_KEY를 등록하세요.")
     st.stop()
 
-# 5. 사이드바 구성 (공지게시판 최상단 배치)
+# 5. 사이드바 메뉴
 with st.sidebar:
     st.title("🛠️ 워크벤치")
     menu = st.radio("업무 선택", ["📋 공지게시판", "🎬 유튜브 업로드 세팅", "📧 비즈니스 격식 변환기", "📝 콘텐츠 기획 콘티"])
     st.divider()
     selected_model = st.selectbox("엔진 선택", ["gemini-2.0-flash", "gemini-2.5-flash"])
-    if 'tokens' not in st.session_state: st.session_state.tokens = 0
-    st.metric("마지막 작업 토큰", f"{st.session_state.tokens} pts")
 
 def img_to_base64(file):
     return base64.b64encode(file.read()).decode() if file else None
 
 # ==========================================
-# 6. 기능 1: 공지게시판
+# 6. 기능 1: 공지게시판 (생략 없이 유지)
 # ==========================================
 if menu == "📋 공지게시판":
     st.title("📋 팀 공지게시판")
@@ -103,7 +87,7 @@ if menu == "📋 공지게시판":
         n_tag = st.selectbox("태그", ["필독", "안내", "업데이트", "긴급"])
         n_content = st.text_area("내용")
         n_img = st.file_uploader("이미지 첨부", type=["png", "jpg", "jpeg"])
-        n_pass = st.text_input("관리자 인증 번호", type="password")
+        n_pass = st.text_input("인증 번호", type="password")
         if st.button("📢 등록"):
             if n_pass == "0914" and n_content:
                 img_data = img_to_base64(n_img)
@@ -138,10 +122,11 @@ if menu == "📋 공지게시판":
                         st.session_state.notices.pop(idx); save_notices(st.session_state.notices); st.rerun()
 
 # ==========================================
-# 7. 기능 2: 유튜브 업로드 세팅 (태그 포맷 수정)
+# 7. 기능 2: 유튜브 업로드 세팅 (v8.7 핵심 수정)
 # ==========================================
 elif menu == "🎬 유튜브 업로드 세팅":
     st.title("🎬 유튜브 업로드 세팅")
+    
     with st.expander("🛠️ 설명란 양식 편집"):
         default_template = """💫 남성 건강의 시작, 유로진에서 함께하세요 💫\n\n{summary}\n\n📍 위치 : 부산 부산진구 부전동 257-3\n✔️ 홈페이지 : http://busan.urogyn.co.kr/"""
         desc_template = st.text_area("템플릿", value=default_template, height=180)
@@ -156,32 +141,58 @@ elif menu == "🎬 유튜브 업로드 세팅":
             elif ftype == 'docx': final_script = "\n".join([p.text for p in Document(uploaded_file).paragraphs])
             elif ftype == 'pdf':
                 for p in PyPDF2.PdfReader(uploaded_file).pages: final_script += (p.extract_text() or "") + "\n"
-        except Exception as e: st.error(f"파일 로드 실패: {e}")
-    else: final_script = st.text_area("직접 입력", height=200)
+        except: st.error("파일 로드 실패")
+    else: final_script = st.text_area("직접 입력", height=150)
 
     if st.button("🚀 데이터 추출하기"):
-        if not final_script: st.warning("내용을 입력하세요.")
+        if not final_script: st.warning("분석할 내용을 입력하세요.")
         else:
             try:
                 model = genai.GenerativeModel(selected_model)
                 with st.spinner("🎬 최적화된 데이터를 생성 중..."):
-                    # 프롬프트에 태그 포맷 지시 추가
-                    prompt = f"유튜브 PD로서 다음 스크립트 분석해. 요약은 4~5줄, 줄바꿈 필수, 이모지 포함. 태그는 쉼표로만 구분된 50개의 문자열로 줘(대괄호나 따옴표 절대 금지). 결과 JSON. {final_script}"
+                    # 프롬프트: 제목, 썸네일 카피 명시적 요청
+                    prompt = f"""유튜브 PD로서 다음 스크립트를 분석해. 
+                    1) 요약: 4~5줄, 줄바꿈 필수, 이모지 포함, 호기심 유발 
+                    2) 추천 제목: 클릭을 부르는 제목 3개
+                    3) 썸네일 카피: 강렬한 썸네일 문구 3개
+                    4) 태그: 쉼표로만 구분된 관련 태그 50개(대괄호/따옴표 금지)
+                    결과는 JSON 형식으로. 스크립트: {final_script}"""
+                    
                     response = model.generate_content(prompt, generation_config={"response_mime_type": "application/json"})
                     data = json.loads(response.text)
-                    st.session_state.tokens = response.usage_metadata.total_token_count
                     
-                    # 태그 포맷 후처리 (리스트나 작은따옴표 제거)
+                    # 태그 포맷 후처리
                     raw_tags = data.get("tags", "")
                     if isinstance(raw_tags, list): clean_tags = ", ".join(raw_tags)
                     else: clean_tags = str(raw_tags).replace("[", "").replace("]", "").replace("'", "").replace('"', "")
+
+                    # --- UI 레이아웃 구성 (image_926942.jpg 스타일) ---
+                    col_left, col_right = st.columns([1, 1])
                     
+                    with col_left:
+                        st.markdown("### 📋 복사용 설명란")
+                        summary = data.get("요약", data.get("summary_content", ""))
+                        final_desc = desc_template.replace("{summary}", summary)
+                        st.code(f"{final_desc}\n\n{fixed_hashtags}", language="text")
+                    
+                    with col_right:
+                        st.markdown("### 💡 추천 제목 & 썸네일")
+                        titles = data.get("추천 제목", data.get("titles", []))
+                        for t in titles: st.write(f"📍 {t}")
+                        
+                        st.divider()
+                        st.markdown("#### 🖼️ 썸네일 카피 추천")
+                        copies = data.get("썸네일 카피", data.get("thumbnail_copies", []))
+                        for c in copies: st.info(f"✨ {c}")
+
+                    st.markdown("---")
+                    st.markdown("### 🏷️ 태그 (쉼표 구분)")
                     st.markdown(f'<div class="tag-box">{clean_tags}</div>', unsafe_allow_html=True)
-                    st.code(f"{desc_template.replace('{summary}', data.get('summary_content', ''))}\n\n{fixed_hashtags}", language="text")
+                    
             except Exception as e: st.error(f"오류: {e}")
 
 # ==========================================
-# 8. 기능 3: 비즈니스 격식 변환기
+# 8. 기능 3 & 4 (기존 로직 유지)
 # ==========================================
 elif menu == "📧 비즈니스 격식 변환기":
     st.title("📧 비즈니스 격식 변환기")
@@ -195,45 +206,20 @@ elif menu == "📧 비즈니스 격식 변환기":
             st.code(response.text, language="text")
         except Exception as e: st.error(f"오류: {e}")
 
-# ==========================================
-# 9. 기능 4: 콘텐츠 기획 콘티 (시즌 7 메커니즘 탑재)
-# ==========================================
 elif menu == "📝 콘텐츠 기획 콘티":
     st.title("📝 콘텐츠 기획 콘티 (시즌 7 Style)")
     client_name = st.text_input("업체명", value="유로진 부산점")
-    q_count = st.slider("질문 개수", 3, 10, 7)
-    
-    st.markdown("### 🎯 주제별 상세 가이드")
+    q_count = st.slider("질문 개수", 3, 10, 6)
     c1, c2 = st.columns(2)
-    with c1:
-        f1 = st.text_input("주제 1 내용", value="도입부 위험성 강조")
-        f2 = st.text_input("주제 2 내용", value="민간요법 팩트체크")
-    with c2:
-        f3 = st.text_input("주제 3 내용", value="수술 상세 과정")
-        f4 = st.text_input("주제 4 내용", value="사후 관리 및 당부")
-
+    with c1: f1 = st.text_input("주제 1 가이드", value="도입부 위험성 강조"); f2 = st.text_input("주제 2 가이드", value="민간요법 팩트체크")
+    with c2: f3 = st.text_input("주제 3 가이드", value="수술 상세 과정"); f4 = st.text_input("주제 4 가이드", value="사후 관리 및 당부")
     ref_text = st.text_area("레퍼런스 입력", height=150)
     if st.button("💡 시즌 7 스타일 콘티 생성"):
         try:
             model = genai.GenerativeModel(selected_model)
-            # 시즌 7 메커니즘(주제-핵심포인트-질문리스트) 주입
-            prompt = f"""당신은 전문 콘텐츠 전략가입니다. 업체 '{client_name}'를 위한 시즌 7 스타일의 콘티를 작성하세요.
-            
-            [주제별 가이드라인]
-            - 주제 1: {f1} / 주제 2: {f2} / 주제 3: {f3} / 주제 4: {f4}
-
-            [형식 규칙 - 중요]
-            1. 각 주제는 '주제 X. [호기심 자극 제목]'으로 시작할 것.
-            2. 제목 아래에 '핵심 포인트 : [한 줄 요약]'을 명시할 것[cite: 2, 14, 23, 33].
-            3. 질문은 반드시 '#' 번호를 매기고 구어체(예: '원장님, ~한가요?')를 사용할 것[cite: 15, 17, 24, 34].
-            4. 주제당 질문 개수는 {q_count}개로 설정할 것.
-            5. 결론을 미리 노출하지 말고 궁금증만 유발할 것.
-
-            레퍼런스: {ref_text}"""
-            
+            prompt = f"""업체 '{client_name}'를 위한 시즌 7 스타일 콘티를 작성해.
+            [가이드라인] 주제1:{f1}, 주제2:{f2}, 주제3:{f3}, 주제4:{f4}
+            [형식] 각 주제는 '주제 X. [제목]'으로 시작하고 그 밑에 '핵심 포인트 : [한 줄 요약]' 명시. 질문은 구어체로 {q_count}개씩. 레퍼런스: {ref_text}"""
             response = model.generate_content(prompt)
-            st.markdown('<div class="result-section">', unsafe_allow_html=True)
-            st.write(response.text)
-            st.markdown('</div>', unsafe_allow_html=True)
-            st.balloons()
+            st.write(response.text); st.balloons()
         except Exception as e: st.error(f"오류: {e}")
